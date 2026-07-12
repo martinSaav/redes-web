@@ -21,10 +21,19 @@ const XSW = 38;
 const XR = 64;
 const XB = 89;
 
-const IP1 = 'IP · 192.168.1.10 → 93.184.216.34 · TTL 64';
-const IP2 = 'IP · 192.168.1.10 → 93.184.216.34 · TTL 63';
-const ETH1 = 'Ethernet · MAC A → MAC router';
-const ETH2 = 'Ethernet · MAC router → MAC B';
+const IP_SRC = '192.168.1.10';
+const IP_DST = '93.184.216.34';
+const PORT_SRC = '49152';
+const PORT_DST = '80';
+const MAC_A = 'aa:aa:aa:aa:aa:aa';
+const MAC_RTR_LAN = '11:11:11:11:11:11';
+const MAC_RTR_WAN = '22:22:22:22:22:22';
+const MAC_B = 'bb:bb:bb:bb:bb:bb';
+
+const IP1 = `IP · ${IP_SRC} → ${IP_DST} · TTL 64`;
+const IP2 = `IP · ${IP_SRC} → ${IP_DST} · TTL 63`;
+const ETH1 = 'Ethernet · A → gateway';
+const ETH2 = 'Ethernet · router → B';
 
 const STEPS: EncapStep[] = [
   {
@@ -44,8 +53,8 @@ const STEPS: EncapStep[] = [
   },
   {
     fromX: XA, toX: XA, layers: ['tcp', 'ip', 'eth'], appear: 'eth', ethText: ETH1, ipText: IP1,
-    highlight: { device: 'a', layers: ['Enlace', 'Física'] },
-    msg: '<strong>Enlace</strong> arma la <strong>TRAMA</strong>: MACs del enlace LOCAL (A → router, ¡no la MAC del destino final!) y un trailer <strong>CRC</strong>. Física la convierte en bits.',
+    highlight: { device: 'a', layers: ['Enlace'] },
+    msg: '<strong>Enlace</strong> arma la <strong>TRAMA</strong>: MACs del enlace LOCAL (A → gateway, ¡no la MAC del destino final!) y un trailer <strong>CRC</strong>. Ya lista para salir al medio como bits.',
   },
   {
     fromX: XA, toX: XSW, layers: ['tcp', 'ip', 'eth'], ethText: ETH1, ipText: IP1,
@@ -53,8 +62,8 @@ const STEPS: EncapStep[] = [
   },
   {
     fromX: XSW, toX: XSW, layers: ['tcp', 'ip', 'eth'], ethText: ETH1, ipText: IP1,
-    highlight: { device: 'sw', layers: ['Enlace', 'Física'] },
-    msg: 'El <strong>switch procesa hasta CAPA 2</strong>: mira la MAC destino en su tabla y reenvía. <strong>Ni se entera</strong> de que adentro hay un datagrama IP — para él es carga opaca.',
+    highlight: { device: 'sw', layers: ['Enlace'] },
+    msg: 'El <strong>switch procesa hasta la capa de enlace</strong>: mira la MAC destino en su tabla y reenvía. <strong>Ni se entera</strong> de que adentro hay un datagrama IP — para él es carga opaca, y <strong>no toca las MACs</strong>.',
   },
   {
     fromX: XSW, toX: XR, layers: ['tcp', 'ip', 'eth'], ethText: ETH1, ipText: IP1,
@@ -62,32 +71,37 @@ const STEPS: EncapStep[] = [
   },
   {
     fromX: XR, toX: XR, layers: ['tcp', 'ip'], disappear: 'eth', ethText: ETH1, ipText: IP2,
-    highlight: { device: 'r', layers: ['Red', 'Enlace', 'Física'] },
-    msg: 'El router <strong>DESENCAPSULA la trama</strong> (la capa 3 necesita el datagrama): lookup por <strong>LPM</strong> en su tabla, <strong>TTL 64 → 63</strong> y recalcula el checksum del header.',
+    highlight: { device: 'r', layers: ['Red', 'Enlace'] },
+    msg: 'El router <strong>DESENCAPSULA la trama</strong> (la capa de red necesita el datagrama): lookup por <strong>LPM</strong> en su tabla, <strong>TTL 64 → 63</strong> y recalcula el checksum del header.',
   },
   {
     fromX: XR, toX: XR, layers: ['tcp', 'ip', 'eth'], appear: 'eth', ethText: ETH2, ipText: IP2,
     highlight: { device: 'r', layers: ['Enlace'] },
-    msg: 'Re-encapsula en una <strong>trama NUEVA</strong> para el próximo enlace: <strong>MACs nuevas</strong> (router → B), <strong>MISMAS IPs</strong>. La MAC se reescribe en cada salto; la IP, nunca.',
+    msg: 'Re-encapsula en una <strong>trama NUEVA</strong> para el próximo enlace: <strong>MACs nuevas</strong> (router → B), <strong>MISMAS IPs</strong>. Mirá el panel de abajo: la MAC se reescribe en cada salto; la IP, nunca.',
   },
   {
     fromX: XR, toX: XB, layers: ['tcp', 'ip', 'eth'], ethText: ETH2, ipText: IP2,
     msg: 'Última pierna del viaje: hacia el <strong>Host B</strong>.',
   },
   {
-    fromX: XB, toX: XB, layers: ['tcp', 'ip'], disappear: 'eth', ethText: ETH2, ipText: IP2,
+    fromX: XB, toX: XB, layers: ['tcp', 'ip', 'eth'], ethText: ETH2, ipText: IP2,
     highlight: { device: 'b', layers: ['Enlace'] },
-    msg: '<strong>Enlace</strong> de B: verifica el <strong>CRC ✔</strong> (si estuviera mal, descarta en silencio) y le pasa el datagrama a la capa de red.',
+    msg: '<strong>Enlace</strong> de B: recibe la <strong>TRAMA</strong> y verifica el <strong>CRC ✔</strong> (si estuviera mal, la descarta en silencio). Como la MAC destino es la suya, saca el header y sube el datagrama.',
   },
   {
-    fromX: XB, toX: XB, layers: ['tcp'], disappear: 'ip', ipText: IP2,
+    fromX: XB, toX: XB, layers: ['tcp', 'ip'], ipText: IP2,
     highlight: { device: 'b', layers: ['Red'] },
-    msg: '<strong>Red</strong> de B: la IP destino <strong>es la mía ✔</strong>. Saca el segmento y lo sube. El campo <em>protocol=6</em> le dice que arriba espera TCP.',
+    msg: '<strong>Red</strong> de B: abre el <strong>DATAGRAMA</strong>, la IP destino <strong>es la mía ✔</strong>. El campo <em>protocol=6</em> le dice que arriba espera TCP → sube el segmento a transporte.',
+  },
+  {
+    fromX: XB, toX: XB, layers: ['tcp'],
+    highlight: { device: 'b', layers: ['Transporte'] },
+    msg: '<strong>Transporte</strong> de B: recibe el <strong>SEGMENTO</strong>, verifica el checksum ✔ y mira el <strong>puerto destino 80</strong> → sabe a qué proceso (el servidor web) entregarlo.',
   },
   {
     fromX: XB, toX: XB, layers: [], disappear: 'tcp', deliver: true,
-    highlight: { device: 'b', layers: ['Transporte', 'Aplicación'] },
-    msg: '<strong>Transporte</strong> de B: checksum ✔, puerto destino <strong>80</strong> → entrega el MENSAJE al socket del servidor web. <strong>Desencapsulado completo</strong>: cada capa quitó exactamente lo que su par había puesto.',
+    highlight: { device: 'b', layers: ['Aplicación'] },
+    msg: '<strong>Aplicación</strong> de B: el servidor web recibe el <strong>MENSAJE</strong> (GET /index.html) en su socket. <strong>Desencapsulado completo</strong>: cada capa quitó exactamente lo que su par había puesto.',
   },
 ];
 
@@ -100,10 +114,10 @@ interface Device {
 }
 
 const DEVICES: Device[] = [
-  { id: 'a', x: XA, name: 'Host A', color: '#4caf50', layers: ['Aplicación', 'Transporte', 'Red', 'Enlace', 'Física'] },
-  { id: 'sw', x: XSW, name: 'Switch', color: '#607d8b', layers: ['Enlace', 'Física'] },
-  { id: 'r', x: XR, name: 'Router', color: '#f68c1f', layers: ['Red', 'Enlace', 'Física'] },
-  { id: 'b', x: XB, name: 'Host B', color: '#1976d2', layers: ['Aplicación', 'Transporte', 'Red', 'Enlace', 'Física'] },
+  { id: 'a', x: XA, name: 'Host A', color: '#4caf50', layers: ['Aplicación', 'Transporte', 'Red', 'Enlace'] },
+  { id: 'sw', x: XSW, name: 'Switch', color: '#607d8b', layers: ['Enlace'] },
+  { id: 'r', x: XR, name: 'Router', color: '#f68c1f', layers: ['Red', 'Enlace'] },
+  { id: 'b', x: XB, name: 'Host B', color: '#1976d2', layers: ['Aplicación', 'Transporte', 'Red', 'Enlace'] },
 ];
 
 @Component({
@@ -163,6 +177,26 @@ const DEVICES: Device[] = [
             <div class="dname" [style.background]="d.color">{{ d.name }}</div>
           </div>
         }
+      </div>
+
+      <!-- panel de direcciones: cómo cambian MAC / IP / puerto en el viaje -->
+      <div class="headers">
+        <div class="hcap">Direcciones en este tramo</div>
+        <div class="hrow eth" [class.dim]="!wrapOn('eth')" [class.flash]="hdr().macChanged && wrapOn('eth')">
+          <span class="hlbl">Enlace · MAC</span>
+          <span class="hval">{{ hdr().macSrc }} <span class="ar">→</span> {{ hdr().macDst }}</span>
+          <span class="htag">{{ hdr().macChanged ? '🔄 reescrita en el router' : 'solo este enlace' }}</span>
+        </div>
+        <div class="hrow ip" [class.dim]="!wrapOn('ip')">
+          <span class="hlbl">Red · IP</span>
+          <span class="hval">{{ hdr().ipSrc }} <span class="ar">→</span> {{ hdr().ipDst }}</span>
+          <span class="htag">extremo a extremo · TTL {{ hdr().ttl }}</span>
+        </div>
+        <div class="hrow tcp" [class.dim]="!wrapOn('tcp')">
+          <span class="hlbl">Transporte · Puerto</span>
+          <span class="hval">{{ hdr().portSrc }} <span class="ar">→</span> {{ hdr().portDst }}</span>
+          <span class="htag">extremo a extremo</span>
+        </div>
       </div>
 
       <div class="status" [class.done]="finished()" [class.idle]="index() < 0">
@@ -258,6 +292,27 @@ const DEVICES: Device[] = [
     .dot:hover { transform: scale(1.3); }
     .dot.past { background: #1f6feb; border-color: #1f6feb; }
     .dot.now { background: #ffd54f; border-color: #ffd54f; }
+
+    .headers { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+    .hcap { font-size: 0.7rem; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; color: #8b95b5; margin-bottom: 2px; }
+    .hrow { display: grid; grid-template-columns: 148px 1fr auto; align-items: center; gap: 10px; padding: 5px 9px; border-radius: 7px; border: 1px solid transparent; font-size: 0.8rem; transition: opacity 0.3s, border-color 0.3s, background 0.3s; }
+    .hrow.dim { opacity: 0.3; }
+    .hlbl { font-weight: 700; font-size: 0.72rem; }
+    .hval { font-family: Consolas, monospace; font-weight: 700; color: var(--text); }
+    .hval .ar { color: #8b95b5; margin: 0 5px; }
+    .htag { font-size: 0.68rem; color: var(--text-dim); white-space: nowrap; }
+    .hrow.eth { border-color: #a78bfa33; } .hrow.eth .hlbl { color: #d2b9ff; }
+    .hrow.ip { border-color: #58a6ff33; } .hrow.ip .hlbl { color: #79c0ff; }
+    .hrow.tcp { border-color: #f0a83b33; } .hrow.tcp .hlbl { color: #ffd54f; }
+    .hrow.flash { border-color: #f0a83b; background: rgba(240, 168, 59, 0.15); animation: hflash 0.9s ease-in-out infinite; }
+    @keyframes hflash {
+      0%, 100% { box-shadow: 0 0 3px rgba(240, 168, 59, 0.3); }
+      50% { box-shadow: 0 0 16px rgba(240, 168, 59, 0.85); }
+    }
+    @media (max-width: 620px) {
+      .hrow { grid-template-columns: 1fr; gap: 2px; }
+      .htag { white-space: normal; }
+    }
   `,
 })
 export class EncapAnim extends SteppedAnim implements OnDestroy {
@@ -303,6 +358,22 @@ export class EncapAnim extends SteppedAnim implements OnDestroy {
     return i >= 0 ? (STEPS[i].ipText ?? IP1) : IP1;
   }
 
+  /** estado de las cabeceras (direcciones) según el tramo del viaje */
+  readonly hdr = computed(() => {
+    const i = this.index();
+    const seg2 = i >= 8; // después de la re-encapsulación en el router
+    return {
+      macSrc: seg2 ? MAC_RTR_WAN : MAC_A,
+      macDst: seg2 ? MAC_B : MAC_RTR_LAN,
+      ipSrc: IP_SRC,
+      ipDst: IP_DST,
+      ttl: i >= 7 ? 63 : 64,
+      portSrc: PORT_SRC,
+      portDst: PORT_DST,
+      macChanged: i === 8,
+    };
+  });
+
   readonly delivering = computed(() => {
     const i = this.index();
     return i >= 0 && !!STEPS[i].deliver && this.progress() >= 1;
@@ -325,7 +396,7 @@ export class EncapAnim extends SteppedAnim implements OnDestroy {
 
   readonly statusMsg = computed(() => {
     if (this.finished()) {
-      return '<strong>La regla de oro</strong>: los hosts implementan las 5 capas; los routers procesan hasta la 3 (necesitan la IP para rutear); los switches hasta la 2 (solo miran MACs). Y los nombres se preguntan: <strong>mensaje → segmento → datagrama → trama → bits</strong>.';
+      return '<strong>La regla de oro</strong>: los hosts implementan las <strong>4 capas del modelo TCP/IP</strong>; los routers procesan hasta la <strong>capa de red</strong> (necesitan la IP para rutear); los switches hasta la <strong>capa de enlace</strong> (solo miran MACs). Y fijate en el panel: <strong>la IP y los puertos son extremo a extremo</strong> (no cambian nunca), pero <strong>la MAC se reescribe en cada salto</strong>. Los nombres se preguntan: <strong>mensaje → segmento → datagrama → trama</strong>.';
     }
     const i = this.index();
     if (i < 0) return 'Presioná ▶ Play y mirá cómo el paquete se "viste" al bajar por la pila y se "desviste" al subir — y qué capas prende cada dispositivo.';

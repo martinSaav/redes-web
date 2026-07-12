@@ -121,16 +121,15 @@ export const SECTIONS: Section[] = [
         title: 'Modelo de capas y encapsulamiento',
         widget: 'encap',
         html: `
-<p>Internet: <strong>5 capas</strong> — Aplicación, Transporte, Red, Enlace, Física. OSI agrega <strong>Presentación</strong> (cifrado, compresión — hoy la absorbe la aplicación, ej. TLS) y <strong>Sesión</strong>. La idea de fondo es <strong>modularidad</strong>: cambiás de cable a WiFi sin tocar TCP ni HTTP. Costo: redundancias (checksums repetidos) y violaciones (NAT).</p>
+<p>El modelo <strong>TCP/IP</strong> tiene <strong>4 capas</strong> — Aplicación, Transporte, Red y Enlace. (La transmisión de <strong>bits</strong> por el medio queda dentro de la de enlace; los modelos <strong>OSI</strong> y el "de 5 capas" de Kurose la separan como capa <strong>Física</strong>, y OSI suma además <strong>Presentación</strong> —cifrado/compresión, hoy la absorbe la app, ej. TLS— y <strong>Sesión</strong>.) La idea de fondo es <strong>modularidad</strong>: cambiás de cable a WiFi sin tocar TCP ni HTTP. Costo: redundancias (checksums repetidos) y violaciones (NAT).</p>
 <p><strong>Encapsulamiento</strong> — los nombres se preguntan:</p>
 <ul>
 <li>Aplicación → <strong>mensaje</strong></li>
 <li>Transporte → <strong>segmento</strong> (header con puertos)</li>
 <li>Red → <strong>datagrama</strong> (header con IPs)</li>
-<li>Enlace → <strong>trama</strong> (header con MACs + trailer CRC)</li>
-<li>Física → <strong>bits</strong></li>
+<li>Enlace → <strong>trama</strong> (header con MACs + trailer CRC) → sale al medio como <strong>bits</strong></li>
 </ul>
-<span class="tip">Regla de oro: los <strong>hosts</strong> implementan las 5 capas; los <strong>routers</strong> hasta la 3 (necesitan la IP); los <strong>switches</strong> hasta la 2 (solo miran MACs).</span>`,
+<span class="tip">Regla de oro: los <strong>hosts</strong> implementan las 4 capas; los <strong>routers</strong> llegan hasta la capa de <strong>red</strong> (necesitan la IP); los <strong>switches</strong> hasta la de <strong>enlace</strong> (solo miran MACs).</span>`,
       },
       {
         title: 'Panorama de amenazas (adelanto)',

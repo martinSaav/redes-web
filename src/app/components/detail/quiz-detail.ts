@@ -453,10 +453,26 @@ export class QuizDetail {
   readonly selected = signal<number | null>(null);
   readonly score = signal(0);
   readonly answeredCount = signal(0);
+  /** cambia en cada restart para re-mezclar las opciones */
+  private readonly shuffleTick = signal(0);
 
-  readonly pool = computed(() =>
-    this.filter() === 'all' ? QUESTIONS : QUESTIONS.filter((q) => q.sec === this.filter()),
-  );
+  readonly pool = computed(() => {
+    this.shuffleTick();
+    const base = this.filter() === 'all' ? QUESTIONS : QUESTIONS.filter((q) => q.sec === this.filter());
+    // mezcla las opciones de cada pregunta (si no, la correcta siempre sería la A)
+    return base.map((q) => {
+      const order = q.options.map((_, i) => i);
+      for (let i = order.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [order[i], order[j]] = [order[j], order[i]];
+      }
+      return {
+        ...q,
+        options: order.map((i) => q.options[i]),
+        correct: order.indexOf(q.correct),
+      };
+    });
+  });
 
   readonly current = computed(() => this.pool()[this.idx()]);
   readonly answered = computed(() => this.selected() !== null);
@@ -485,6 +501,7 @@ export class QuizDetail {
     this.selected.set(null);
     this.score.set(0);
     this.answeredCount.set(0);
+    this.shuffleTick.update((n) => n + 1);
   }
 
   resultEmoji(): string {

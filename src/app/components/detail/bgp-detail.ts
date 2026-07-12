@@ -154,7 +154,7 @@ const ROUTES: RouteRow[] = [
           <div class="node host" [class.active]="active('src')" [style.left.%]="P['src'].x" [style.top.%]="P['src'].y">
             <strong>💻 host</strong><small>en AS1</small>
           </div>
-          <div class="node rtr" [class.chosen]="chosen('r1b')" [class.active]="active('r1a')" [style.left.%]="P['r1a'].x" [style.top.%]="P['r1a'].y">
+          <div class="node rtr" [class.chosen]="chosen('r1a')" [class.active]="active('r1a')" [style.left.%]="P['r1a'].x" [style.top.%]="P['r1a'].y">
             <strong>1a</strong>
           </div>
           <div class="node rtr" [class.chosen]="chosen('r1b')" [class.active]="active('r1b')" [style.left.%]="P['r1b'].x" [style.top.%]="P['r1b'].y">

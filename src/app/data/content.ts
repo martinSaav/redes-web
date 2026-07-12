@@ -23,7 +23,14 @@ export interface Topic {
     | 'bgp-detail'
     | 'subnet-detail'
     | 'csmacd-detail'
-    | 'quiz-detail'; // componentes a medida
+    | 'quiz-detail'
+    | 'router-detail'
+    | 'sdn-detail'
+    | 'dv-detail'
+    | 'http2-detail'
+    | 'wpa-detail'
+    | 'ipsec-detail'
+    | 'playout-detail'; // componentes a medida
 }
 
 export interface Section {
@@ -100,6 +107,7 @@ export const SECTIONS: Section[] = [
       },
       {
         title: 'Métricas y herramientas',
+        widget: 'playout-detail',
         html: `
 <ul>
 <li><strong>RTT</strong>: ida y vuelta. Se mide con <code>ping</code> (ICMP Echo).</li>
@@ -172,6 +180,7 @@ export const SECTIONS: Section[] = [
       },
       {
         title: 'HTTP/2 y HTTP/3',
+        widget: 'http2-detail',
         html: `
 <p><strong>HTTP/2</strong>: mismos métodos y códigos, distinto transporte interno. En 1.1 un objeto grande al frente bloquea a los chicos (<strong>head-of-line blocking</strong>). HTTP/2: <strong>framing binario</strong> — los mensajes se parten en frames que se <strong>intercalan</strong> sobre UNA conexión TCP —, priorización de streams y <strong>server push</strong>. Problema restante: el HOL de TCP (una pérdida frena TODOS los streams, porque TCP entrega en orden).</p>
 <p><strong>HTTP/3</strong> = HTTP sobre <strong>QUIC</strong> (UDP): multiplexación sin HOL, seguridad integrada, establecimiento más rápido.</p>`,
@@ -350,6 +359,7 @@ export const SECTIONS: Section[] = [
       },
       {
         title: 'Adentro de un router',
+        widget: 'router-detail',
         html: `
 <p>Cuatro componentes: <strong>puertos de entrada</strong> (terminan el enlace, lookup por <strong>LPM</strong> a line-speed con memorias <strong>TCAM</strong>), <strong>switching fabric</strong> (por memoria → por bus → por <strong>crossbar</strong> con transferencias en paralelo), <strong>puertos de salida</strong> (buffer + scheduling) y <strong>procesador de ruteo</strong>.</p>
 <p><strong>Dónde se pierde</strong>: en colas. En entrada, <strong>HOL blocking</strong> (el del frente, bloqueado, traba a los de atrás). En salida (lo común): buffer lleno → drop-tail, o descarte/marcado temprano con <strong>AQM</strong> (RED, CoDel — contra el bufferbloat).</p>
@@ -438,6 +448,7 @@ export const SECTIONS: Section[] = [
       },
       {
         title: 'OSPF y RIP',
+        widget: 'dv-detail',
         html: `
 <p><strong>OSPF</strong> (link-state): LSAs por flooding confiable + Dijkstra. Costos configurables (1 en todos = mínimo de saltos; o inversos a la banda). Extras industriales: <strong>autenticación</strong> de mensajes, <strong>ECMP</strong> (caminos de igual costo repartidos) y <strong>jerarquía en áreas</strong> con backbone (área 0) para contener el flooding.</p>
 <p><strong>RIP</strong> (distance-vector histórico): métrica = <strong>saltos, máximo 15</strong> (16 = ∞, lo que acota el count-to-infinity y lo limita a redes chicas). Vectores cada ~30 s. Hoy, pieza de museo didáctica.</p>`,
@@ -464,6 +475,7 @@ export const SECTIONS: Section[] = [
       },
       {
         title: 'SDN: el control plane centralizado',
+        widget: 'sdn-detail',
         html: `
 <p>La lógica de control sale de los routers hacia un <strong>controlador</strong> lógicamente centralizado (replicado físicamente) con vista global. Tres pisos:</p>
 <ul>
@@ -668,6 +680,7 @@ export const SECTIONS: Section[] = [
       },
       {
         title: 'IPsec (red) → VPNs',
+        widget: 'ipsec-detail',
         html: `
 <p>Trabaja sobre <strong>SAs</strong> (contratos <strong>unidireccionales</strong>: claves + algoritmos, identificados por SPI).</p>
 <ul>
@@ -678,6 +691,7 @@ export const SECTIONS: Section[] = [
       },
       {
         title: 'WiFi seguro: WEP → WPA2 → WPA3',
+        widget: 'wpa-detail',
         html: `
 <p><strong>WEP</strong> quedó roto por reuso de IV y claves cortas. <strong>802.11i / WPA2</strong>, cuatro fases: descubrimiento → autenticación mutua y clave maestra (EAP contra un servidor AS en empresas, o clave precompartida en Personal) → <strong>four-way handshake</strong> (intercambio de nonces → clave de sesión par-a-par + clave de grupo para broadcast) → tráfico cifrado.</p>
 <p><strong>WPA3</strong> (2018): corrige el reuso de nonces explotado por <strong>KRACK</strong>, intercambio de claves más robusto, claves más largas.</p>`,

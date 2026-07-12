@@ -23,6 +23,13 @@ import { BgpDetail } from '../components/detail/bgp-detail';
 import { SubnetDetail } from '../components/detail/subnet-detail';
 import { CsmacdDetail } from '../components/detail/csmacd-detail';
 import { QuizDetail } from '../components/detail/quiz-detail';
+import { RouterDetail } from '../components/detail/router-detail';
+import { SdnDetail } from '../components/detail/sdn-detail';
+import { DvDetail } from '../components/detail/dv-detail';
+import { Http2Detail } from '../components/detail/http2-detail';
+import { WpaDetail } from '../components/detail/wpa-detail';
+import { IpsecDetail } from '../components/detail/ipsec-detail';
+import { PlayoutDetail } from '../components/detail/playout-detail';
 
 @Component({
   selector: 'app-section',
@@ -51,6 +58,13 @@ import { QuizDetail } from '../components/detail/quiz-detail';
     SubnetDetail,
     CsmacdDetail,
     QuizDetail,
+    RouterDetail,
+    SdnDetail,
+    DvDetail,
+    Http2Detail,
+    WpaDetail,
+    IpsecDetail,
+    PlayoutDetail,
   ],
   template: `
     @if (section(); as sec) {
@@ -94,6 +108,13 @@ import { QuizDetail } from '../components/detail/quiz-detail';
               @case ('subnet-detail') { <app-subnet-detail /> }
               @case ('csmacd-detail') { <app-csmacd-detail /> }
               @case ('quiz-detail') { <app-quiz-detail /> }
+              @case ('router-detail') { <app-router-detail /> }
+              @case ('sdn-detail') { <app-sdn-detail /> }
+              @case ('dv-detail') { <app-dv-detail /> }
+              @case ('http2-detail') { <app-http2-detail /> }
+              @case ('wpa-detail') { <app-wpa-detail /> }
+              @case ('ipsec-detail') { <app-ipsec-detail /> }
+              @case ('playout-detail') { <app-playout-detail /> }
             }
           </article>
         }

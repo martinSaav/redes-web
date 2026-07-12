@@ -1,0 +1,342 @@
+import { ChangeDetectionStrategy, Component, OnDestroy, computed } from '@angular/core';
+import { SteppedAnim } from './stepped';
+
+type Wrapper = 'eth' | 'ip' | 'tcp';
+
+interface EncapStep {
+  fromX: number;
+  toX: number;
+  msg: string;
+  layers: Wrapper[]; // wrappers visibles al FINAL del paso
+  appear?: Wrapper; // wrapper que aparece durante el paso
+  disappear?: Wrapper; // wrapper que desaparece durante el paso
+  ethText?: string;
+  ipText?: string;
+  highlight?: { device: 'a' | 'sw' | 'r' | 'b'; layers: string[] };
+  deliver?: boolean; // el mensaje llega a la app (pulso final)
+}
+
+const XA = 11;
+const XSW = 38;
+const XR = 64;
+const XB = 89;
+
+const IP1 = 'IP · 192.168.1.10 → 93.184.216.34 · TTL 64';
+const IP2 = 'IP · 192.168.1.10 → 93.184.216.34 · TTL 63';
+const ETH1 = 'Ethernet · MAC A → MAC router';
+const ETH2 = 'Ethernet · MAC router → MAC B';
+
+const STEPS: EncapStep[] = [
+  {
+    fromX: XA, toX: XA, layers: [],
+    highlight: { device: 'a', layers: ['Aplicación'] },
+    msg: '<strong>Capa de aplicación</strong> del Host A: el navegador genera el <strong>MENSAJE</strong> — un GET HTTP. Ahora empieza a bajar por la pila.',
+  },
+  {
+    fromX: XA, toX: XA, layers: ['tcp'], appear: 'tcp',
+    highlight: { device: 'a', layers: ['Transporte'] },
+    msg: '<strong>Transporte</strong> lo encapsula en un <strong>SEGMENTO</strong>: header TCP con puertos (src 49152 → dst 80). Esto identifica los PROCESOS en cada punta.',
+  },
+  {
+    fromX: XA, toX: XA, layers: ['tcp', 'ip'], appear: 'ip', ipText: IP1,
+    highlight: { device: 'a', layers: ['Red'] },
+    msg: '<strong>Red</strong> lo mete en un <strong>DATAGRAMA</strong>: IPs origen/destino (esto rutea por el mundo entero) y TTL=64.',
+  },
+  {
+    fromX: XA, toX: XA, layers: ['tcp', 'ip', 'eth'], appear: 'eth', ethText: ETH1, ipText: IP1,
+    highlight: { device: 'a', layers: ['Enlace', 'Física'] },
+    msg: '<strong>Enlace</strong> arma la <strong>TRAMA</strong>: MACs del enlace LOCAL (A → router, ¡no la MAC del destino final!) y un trailer <strong>CRC</strong>. Física la convierte en bits.',
+  },
+  {
+    fromX: XA, toX: XSW, layers: ['tcp', 'ip', 'eth'], ethText: ETH1, ipText: IP1,
+    msg: 'Los bits viajan por el medio físico hasta el <strong>switch</strong>.',
+  },
+  {
+    fromX: XSW, toX: XSW, layers: ['tcp', 'ip', 'eth'], ethText: ETH1, ipText: IP1,
+    highlight: { device: 'sw', layers: ['Enlace', 'Física'] },
+    msg: 'El <strong>switch procesa hasta CAPA 2</strong>: mira la MAC destino en su tabla y reenvía. <strong>Ni se entera</strong> de que adentro hay un datagrama IP — para él es carga opaca.',
+  },
+  {
+    fromX: XSW, toX: XR, layers: ['tcp', 'ip', 'eth'], ethText: ETH1, ipText: IP1,
+    msg: 'Reenviada por el puerto correcto, la trama llega al <strong>router</strong> (el gateway).',
+  },
+  {
+    fromX: XR, toX: XR, layers: ['tcp', 'ip'], disappear: 'eth', ethText: ETH1, ipText: IP2,
+    highlight: { device: 'r', layers: ['Red', 'Enlace', 'Física'] },
+    msg: 'El router <strong>DESENCAPSULA la trama</strong> (la capa 3 necesita el datagrama): lookup por <strong>LPM</strong> en su tabla, <strong>TTL 64 → 63</strong> y recalcula el checksum del header.',
+  },
+  {
+    fromX: XR, toX: XR, layers: ['tcp', 'ip', 'eth'], appear: 'eth', ethText: ETH2, ipText: IP2,
+    highlight: { device: 'r', layers: ['Enlace'] },
+    msg: 'Re-encapsula en una <strong>trama NUEVA</strong> para el próximo enlace: <strong>MACs nuevas</strong> (router → B), <strong>MISMAS IPs</strong>. La MAC se reescribe en cada salto; la IP, nunca.',
+  },
+  {
+    fromX: XR, toX: XB, layers: ['tcp', 'ip', 'eth'], ethText: ETH2, ipText: IP2,
+    msg: 'Última pierna del viaje: hacia el <strong>Host B</strong>.',
+  },
+  {
+    fromX: XB, toX: XB, layers: ['tcp', 'ip'], disappear: 'eth', ethText: ETH2, ipText: IP2,
+    highlight: { device: 'b', layers: ['Enlace'] },
+    msg: '<strong>Enlace</strong> de B: verifica el <strong>CRC ✔</strong> (si estuviera mal, descarta en silencio) y le pasa el datagrama a la capa de red.',
+  },
+  {
+    fromX: XB, toX: XB, layers: ['tcp'], disappear: 'ip', ipText: IP2,
+    highlight: { device: 'b', layers: ['Red'] },
+    msg: '<strong>Red</strong> de B: la IP destino <strong>es la mía ✔</strong>. Saca el segmento y lo sube. El campo <em>protocol=6</em> le dice que arriba espera TCP.',
+  },
+  {
+    fromX: XB, toX: XB, layers: [], disappear: 'tcp', deliver: true,
+    highlight: { device: 'b', layers: ['Transporte', 'Aplicación'] },
+    msg: '<strong>Transporte</strong> de B: checksum ✔, puerto destino <strong>80</strong> → entrega el MENSAJE al socket del servidor web. <strong>Desencapsulado completo</strong>: cada capa quitó exactamente lo que su par había puesto.',
+  },
+];
+
+interface Device {
+  id: 'a' | 'sw' | 'r' | 'b';
+  x: number;
+  name: string;
+  color: string;
+  layers: string[];
+}
+
+const DEVICES: Device[] = [
+  { id: 'a', x: XA, name: 'Host A', color: '#4caf50', layers: ['Aplicación', 'Transporte', 'Red', 'Enlace', 'Física'] },
+  { id: 'sw', x: XSW, name: 'Switch', color: '#607d8b', layers: ['Enlace', 'Física'] },
+  { id: 'r', x: XR, name: 'Router', color: '#f68c1f', layers: ['Red', 'Enlace', 'Física'] },
+  { id: 'b', x: XB, name: 'Host B', color: '#1976d2', layers: ['Aplicación', 'Transporte', 'Red', 'Enlace', 'Física'] },
+];
+
+@Component({
+  selector: 'app-encap-anim',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="anim">
+      <div class="head">
+        <div class="titles">
+          <div class="title">📦 Encapsulamiento: el viaje completo, capa por capa</div>
+          <div class="caption">Mensaje → segmento → datagrama → trama. Cada dispositivo abre SOLO las capas que le tocan.</div>
+        </div>
+        <div class="controls">
+          <button class="ctl" (click)="prev()" [disabled]="index() < 0">⏮</button>
+          <button class="ctl play" (click)="toggle()">
+            {{ playing() ? '⏸ Pausa' : finished() ? '↺ Repetir' : '▶ Play' }}
+          </button>
+          <button class="ctl" (click)="next()" [disabled]="finished()">⏭</button>
+          <div class="speeds">
+            @for (s of speedOptions; track s) {
+              <button class="spd" [class.on]="speed() === s" (click)="setSpeed(s)">{{ s }}×</button>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="canvas">
+        <!-- paquete anidado -->
+        @if (index() >= 0 && !finished()) {
+          <div class="pkt" [style.left.%]="pktX()">
+            <div class="wrap eth" [class.on]="wrapOn('eth')">
+              <div class="whead">{{ curEthText() }}</div>
+              <div class="wrap ip" [class.on]="wrapOn('ip')">
+                <div class="whead">{{ curIpText() }}</div>
+                <div class="wrap tcp" [class.on]="wrapOn('tcp')">
+                  <div class="whead">TCP · src 49152 → dst 80</div>
+                  <div class="msgcard" [class.pulse]="delivering()">GET /index.html</div>
+                </div>
+              </div>
+              <div class="wfoot">CRC</div>
+            </div>
+            <div class="pkt-tag">{{ pktName() }}</div>
+          </div>
+        }
+
+        <!-- línea de la red -->
+        <div class="wire"></div>
+
+        <!-- dispositivos con sus pilas -->
+        @for (d of devices; track d.id) {
+          <div class="device" [style.left.%]="d.x">
+            <div class="dstack">
+              @for (l of d.layers; track l) {
+                <div class="dlayer" [class.hot]="layerHot(d.id, l)" [style.--dc]="d.color">{{ l }}</div>
+              }
+            </div>
+            <div class="dname" [style.background]="d.color">{{ d.name }}</div>
+          </div>
+        }
+      </div>
+
+      <div class="status" [class.done]="finished()" [class.idle]="index() < 0">
+        @if (index() >= 0 && !finished()) {
+          <span class="stepno">{{ index() + 1 }}/{{ steps.length }}</span>
+        }
+        @if (finished()) {
+          <span class="stepno ok">✔</span>
+        }
+        <span [innerHTML]="statusMsg()"></span>
+      </div>
+
+      <div class="dots">
+        @for (st of steps; track $index; let i = $index) {
+          <button class="dot" [class.past]="i < index() || finished()" [class.now]="i === index() && !finished()" (click)="jump(i)"></button>
+        }
+      </div>
+    </div>
+  `,
+  styles: `
+    .anim { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin: 18px 0; }
+    .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+    .title { font-weight: 700; font-size: 1.02rem; color: #fff; }
+    .caption { color: var(--text-dim); font-size: 0.85rem; margin-top: 2px; }
+    .controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .ctl { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: 0.9rem; }
+    .ctl:hover:not(:disabled) { background: #2d3750; }
+    .ctl:disabled { opacity: 0.35; cursor: default; }
+    .ctl.play { background: #1f6feb; border-color: #1f6feb; color: #fff; font-weight: 700; min-width: 96px; }
+    .speeds { display: flex; gap: 2px; margin-left: 6px; background: var(--panel-2); border-radius: 8px; padding: 2px; border: 1px solid var(--border); }
+    .spd { background: transparent; color: var(--text-dim); border: none; border-radius: 6px; padding: 5px 8px; cursor: pointer; font-size: 0.78rem; }
+    .spd.on { background: #1f6feb; color: #fff; font-weight: 700; }
+
+    .canvas {
+      position: relative; min-height: 400px;
+      background: radial-gradient(ellipse at 50% 60%, #202a40 0%, #171e2e 80%);
+      border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+      padding-bottom: 8px;
+    }
+    .wire { position: absolute; left: 4%; right: 4%; bottom: 150px; border-top: 2px dashed #39445f; }
+
+    .pkt { position: absolute; top: 18px; transform: translateX(-50%); z-index: 3; width: 252px; }
+    .pkt-tag { text-align: center; margin-top: 6px; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.6px; color: #8b95b5; text-transform: uppercase; }
+
+    .wrap { border-radius: 9px; transition: padding 0.4s, border-color 0.4s, background 0.4s, margin 0.4s; border: 2px solid transparent; }
+    .wrap .whead {
+      max-height: 0; opacity: 0; overflow: hidden; transition: max-height 0.4s, opacity 0.4s, margin 0.4s;
+      font-family: Consolas, monospace; font-size: 0.66rem; font-weight: 700; white-space: nowrap;
+    }
+    .wrap .wfoot {
+      max-height: 0; opacity: 0; overflow: hidden; transition: max-height 0.4s, opacity 0.4s;
+      font-family: Consolas, monospace; font-size: 0.6rem; font-weight: 700; text-align: right;
+    }
+    .wrap.on { padding: 5px 7px; }
+    .wrap.on > .whead { max-height: 18px; opacity: 1; margin-bottom: 4px; }
+    .wrap.on > .wfoot { max-height: 16px; opacity: 1; margin-top: 3px; }
+
+    .wrap.eth.on { border-color: #a78bfa; background: rgba(167, 139, 250, 0.1); }
+    .wrap.eth > .whead, .wrap.eth > .wfoot { color: #d2b9ff; }
+    .wrap.ip.on { border-color: #58a6ff; background: rgba(88, 166, 255, 0.1); }
+    .wrap.ip > .whead { color: #79c0ff; }
+    .wrap.tcp.on { border-color: #f0a83b; background: rgba(240, 168, 59, 0.1); }
+    .wrap.tcp > .whead { color: #ffd54f; }
+
+    .msgcard {
+      background: #1d3b26; border: 2px solid #2ea043; border-radius: 8px;
+      color: #7ee787; font-family: Consolas, monospace; font-size: 0.74rem; font-weight: 700;
+      padding: 7px 10px; text-align: center;
+    }
+    .msgcard.pulse { animation: pulse 0.9s ease-in-out infinite; }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 4px rgba(126, 231, 135, 0.3); }
+      50% { box-shadow: 0 0 22px rgba(126, 231, 135, 0.9); }
+    }
+
+    .device { position: absolute; bottom: 12px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 5px; z-index: 2; }
+    .dstack { display: flex; flex-direction: column; gap: 2px; width: 110px; }
+    .dlayer {
+      background: #1a2132; border: 1px solid #2d3750; border-radius: 5px;
+      color: #5c6a8e; font-size: 0.64rem; font-weight: 600; text-align: center; padding: 2.5px 0;
+      transition: background 0.3s, color 0.3s, border-color 0.3s, box-shadow 0.3s;
+    }
+    .dlayer.hot { background: var(--dc); border-color: #fff; color: #fff; font-weight: 800; box-shadow: 0 0 10px var(--dc); }
+    .dname { color: #fff; font-size: 0.76rem; font-weight: 700; padding: 4px 14px; border-radius: 7px; }
+
+    .status { display: flex; align-items: center; gap: 10px; margin-top: 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; min-height: 50px; font-size: 0.95rem; line-height: 1.45; }
+    .status.done { border-color: #2ea04366; background: rgba(46, 160, 67, 0.1); }
+    .status.idle { color: var(--text-dim); font-style: italic; }
+    .stepno { flex-shrink: 0; background: #1f6feb; color: #fff; border-radius: 6px; font-size: 0.75rem; font-weight: 700; padding: 2px 8px; }
+    .stepno.ok { background: #2ea043; }
+    .dots { display: flex; gap: 6px; margin-top: 10px; justify-content: center; flex-wrap: wrap; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--border); background: var(--panel-2); cursor: pointer; padding: 0; transition: transform 0.15s; }
+    .dot:hover { transform: scale(1.3); }
+    .dot.past { background: #1f6feb; border-color: #1f6feb; }
+    .dot.now { background: #ffd54f; border-color: #ffd54f; }
+  `,
+})
+export class EncapAnim extends SteppedAnim implements OnDestroy {
+  readonly steps = STEPS;
+  readonly devices = DEVICES;
+
+  protected stepCount(): number {
+    return STEPS.length;
+  }
+  protected override stepTravel(i: number): number {
+    const s = STEPS[i];
+    return s.fromX === s.toX ? 500 : 1600;
+  }
+  protected override stepDwell(i: number): number {
+    return STEPS[i].fromX === STEPS[i].toX ? 3400 : 1700;
+  }
+
+  readonly pktX = computed(() => {
+    const i = this.index();
+    if (i < 0) return XA;
+    const s = STEPS[i];
+    const p = this.ease(this.progress());
+    return s.fromX + (s.toX - s.fromX) * p;
+  });
+
+  /** un wrapper se ve si está en la lista del paso; appear/disappear se animan a mitad del paso */
+  wrapOn(w: Wrapper): boolean {
+    const i = this.index();
+    if (i < 0) return false;
+    const s = STEPS[i];
+    const mid = this.progress() >= 1;
+    if (s.appear === w) return mid;
+    if (s.disappear === w) return !mid;
+    return s.layers.includes(w);
+  }
+
+  curEthText(): string {
+    const i = this.index();
+    return i >= 0 ? (STEPS[i].ethText ?? ETH1) : ETH1;
+  }
+  curIpText(): string {
+    const i = this.index();
+    return i >= 0 ? (STEPS[i].ipText ?? IP1) : IP1;
+  }
+
+  readonly delivering = computed(() => {
+    const i = this.index();
+    return i >= 0 && !!STEPS[i].deliver && this.progress() >= 1;
+  });
+
+  pktName(): string {
+    if (this.wrapOn('eth')) return 'trama';
+    if (this.wrapOn('ip')) return 'datagrama';
+    if (this.wrapOn('tcp')) return 'segmento';
+    return 'mensaje';
+  }
+
+  layerHot(device: string, layer: string): boolean {
+    const i = this.index();
+    if (i < 0 || this.finished()) return false;
+    const h = STEPS[i].highlight;
+    if (!h || h.device !== device) return false;
+    return h.layers.includes(layer) && this.progress() >= 1;
+  }
+
+  readonly statusMsg = computed(() => {
+    if (this.finished()) {
+      return '<strong>La regla de oro</strong>: los hosts implementan las 5 capas; los routers procesan hasta la 3 (necesitan la IP para rutear); los switches hasta la 2 (solo miran MACs). Y los nombres se preguntan: <strong>mensaje → segmento → datagrama → trama → bits</strong>.';
+    }
+    const i = this.index();
+    if (i < 0) return 'Presioná ▶ Play y mirá cómo el paquete se "viste" al bajar por la pila y se "desviste" al subir — y qué capas prende cada dispositivo.';
+    return STEPS[i].msg;
+  });
+
+  private ease(t: number): number {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  ngOnDestroy(): void {
+    this.destroy();
+  }
+}

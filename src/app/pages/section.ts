@@ -119,7 +119,7 @@ import { QuizDetail } from '../components/detail/quiz-detail';
     }
   `,
   styles: `
-    .page { max-width: 1180px; margin: 0 auto; padding: 28px 24px 60px; }
+    .page { width: calc(50% + 590px); max-width: 100%; margin: 0 auto; padding: 28px 24px 60px; }
     .sec-head { margin-bottom: 22px; }
     .chip {
       display: inline-block;

@@ -18,11 +18,11 @@ interface EncapStep {
   deliver?: boolean; // el mensaje llega a la app (pulso final)
 }
 
-const XA = 8;
-const XSW = 26;
-const XRA = 44;
-const XRB = 63;
-const XB = 85;
+const XA = 13;
+const XSW = 29;
+const XRA = 45;
+const XRB = 62;
+const XB = 84;
 
 const IP_SRC = '192.168.1.10';
 const IP_DST = '93.184.216.34';
@@ -263,7 +263,7 @@ const DEVICES: Device[] = [
     .netlabel.left { left: 4%; }
     .netlabel.right { right: 4%; }
 
-    .pkt { position: absolute; top: 18px; transform: translateX(-50%); z-index: 3; width: 252px; }
+    .pkt { position: absolute; top: 46px; transform: translateX(-50%); z-index: 3; width: 252px; }
     .pkt-tag { text-align: center; margin-top: 6px; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.6px; color: #8b95b5; text-transform: uppercase; }
 
     .wrap { border-radius: 9px; transition: padding 0.4s, border-color 0.4s, background 0.4s, margin 0.4s; border: 2px solid transparent; }

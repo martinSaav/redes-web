@@ -95,9 +95,11 @@ const AUTO_GAP = 950; // ms entre envíos automáticos
             <small>sendBase={{ sendBase() }} · nextSeq={{ nextSeq() }}</small>
           </div>
           <div class="strip">
-            <div class="window" [style.left.%]="(sendBase() / n) * 100" [style.width.%]="(windowSize() / n) * 100">
-              <span class="wlabel">ventana {{ windowSize() }}</span>
-            </div>
+            @if (windowBox().show) {
+              <div class="window" [style.left.%]="windowBox().left" [style.width.%]="windowBox().width">
+                <span class="wlabel">ventana {{ windowSize() }}</span>
+              </div>
+            }
             @for (sq of senderSquares(); track sq.i) {
               <div class="sq" [class]="sq.cls">
                 {{ sq.i }}
@@ -203,7 +205,7 @@ const AUTO_GAP = 950; // ms entre envíos automáticos
     .sparklab .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; vertical-align: 0; margin: 0 1px 0 4px; }
     .sparklab .dot.fr { background: #a78bfa; } .sparklab .dot.to { background: #ef5350; }
 
-    .board { background: radial-gradient(ellipse at 50% 50%, #202a40 0%, #171e2e 80%); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+    .board { background: radial-gradient(ellipse at 50% 50%, #202a40 0%, #171e2e 80%); border: 1px solid var(--border); border-radius: 10px; padding: 14px; overflow: hidden; }
     .strip-row { display: flex; align-items: center; gap: 12px; }
     .side-label { width: 100px; flex-shrink: 0; font-size: 0.74rem; font-weight: 800; color: var(--text-dim); display: flex; flex-direction: column; }
     .side-label small { font-weight: 500; color: #5c6a8e; font-family: Consolas, monospace; font-size: 0.64rem; }
@@ -296,6 +298,14 @@ export class TcpSim implements OnDestroy {
   readonly cwndInt = computed(() => Math.floor(this.cwnd()));
   readonly ssthreshInt = computed(() => Math.floor(this.ssthresh()));
   readonly windowSize = computed(() => Math.min(Math.floor(this.cwnd()), this.rwnd, N));
+
+  /** caja de la ventana clampeada al último slot (nunca desborda la franja) */
+  readonly windowBox = computed(() => {
+    const base = Math.min(this.sendBase(), N);
+    const right = Math.min(base + this.windowSize(), N);
+    const width = Math.max(0, right - base);
+    return { left: (base / N) * 100, width: (width / N) * 100, show: width > 0 && base < N };
+  });
 
   phaseLabel(): string {
     return this.phase() === 'ss' ? 'slow start' : this.phase() === 'ca' ? 'congestion avoid.' : 'fast recovery';

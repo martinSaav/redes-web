@@ -3,6 +3,8 @@ import { SteppedAnim } from './stepped';
 
 type Wrapper = 'eth' | 'ip' | 'tcp';
 
+type DeviceId = 'a' | 'sw' | 'ra' | 'rb' | 'b';
+
 interface EncapStep {
   fromX: number;
   toX: number;
@@ -12,28 +14,33 @@ interface EncapStep {
   disappear?: Wrapper; // wrapper que desaparece durante el paso
   ethText?: string;
   ipText?: string;
-  highlight?: { device: 'a' | 'sw' | 'r' | 'b'; layers: string[] };
+  highlight?: { device: DeviceId; layers: string[] };
   deliver?: boolean; // el mensaje llega a la app (pulso final)
 }
 
-const XA = 11;
-const XSW = 38;
-const XR = 64;
-const XB = 89;
+const XA = 8;
+const XSW = 26;
+const XRA = 44;
+const XRB = 63;
+const XB = 85;
 
 const IP_SRC = '192.168.1.10';
 const IP_DST = '93.184.216.34';
 const PORT_SRC = '49152';
 const PORT_DST = '80';
 const MAC_A = 'aa:aa:aa:aa:aa:aa';
-const MAC_RTR_LAN = '11:11:11:11:11:11';
-const MAC_RTR_WAN = '22:22:22:22:22:22';
+const MAC_RA_LAN = '11:11:11:11:11:11'; // router A, interfaz hacia la red de A
+const MAC_RA_WAN = '22:22:22:22:22:22'; // router A, interfaz hacia el enlace entre routers
+const MAC_RB_WAN = '33:33:33:33:33:33'; // router B, interfaz hacia el enlace entre routers
+const MAC_RB_LAN = '44:44:44:44:44:44'; // router B, interfaz hacia la red de B
 const MAC_B = 'bb:bb:bb:bb:bb:bb';
 
 const IP1 = `IP · ${IP_SRC} → ${IP_DST} · TTL 64`;
 const IP2 = `IP · ${IP_SRC} → ${IP_DST} · TTL 63`;
-const ETH1 = 'Ethernet · A → gateway';
-const ETH2 = 'Ethernet · router → B';
+const IP3 = `IP · ${IP_SRC} → ${IP_DST} · TTL 62`;
+const ETH_A = 'Ethernet · A → router A';
+const ETH_WAN = 'Ethernet · router A → router B';
+const ETH_B = 'Ethernet · router B → B';
 
 const STEPS: EncapStep[] = [
   {
@@ -52,37 +59,52 @@ const STEPS: EncapStep[] = [
     msg: '<strong>Red</strong> lo mete en un <strong>DATAGRAMA</strong>: IPs origen/destino (esto rutea por el mundo entero) y TTL=64.',
   },
   {
-    fromX: XA, toX: XA, layers: ['tcp', 'ip', 'eth'], appear: 'eth', ethText: ETH1, ipText: IP1,
+    fromX: XA, toX: XA, layers: ['tcp', 'ip', 'eth'], appear: 'eth', ethText: ETH_A, ipText: IP1,
     highlight: { device: 'a', layers: ['Enlace'] },
-    msg: '<strong>Enlace</strong> arma la <strong>TRAMA</strong>: MACs del enlace LOCAL (A → gateway, ¡no la MAC del destino final!) y un trailer <strong>CRC</strong>. Ya lista para salir al medio como bits.',
+    msg: '<strong>Enlace</strong> arma la <strong>TRAMA</strong>: MACs del enlace LOCAL (A → router A, ¡no la MAC del destino final!) y un trailer <strong>CRC</strong>. Ya lista para salir al medio como bits.',
   },
   {
-    fromX: XA, toX: XSW, layers: ['tcp', 'ip', 'eth'], ethText: ETH1, ipText: IP1,
+    fromX: XA, toX: XSW, layers: ['tcp', 'ip', 'eth'], ethText: ETH_A, ipText: IP1,
     highlight: { device: 'sw', layers: ['Enlace'] },
     msg: 'La trama viaja por el medio hasta el <strong>switch</strong>, que <strong>procesa solo hasta la capa de enlace</strong>: mira la MAC destino en su tabla y reenvía. <strong>Ni se entera</strong> de que adentro hay un datagrama IP — para él es carga opaca, y <strong>no toca las MACs</strong>.',
   },
   {
-    fromX: XSW, toX: XR, layers: ['tcp', 'ip', 'eth'], ethText: ETH1, ipText: IP1,
-    highlight: { device: 'r', layers: ['Enlace'] },
-    msg: 'La <strong>TRAMA</strong> llega al <strong>router</strong> (su gateway). La <strong>capa de enlace</strong> verifica el <strong>CRC ✔</strong> y ve que la <strong>MAC destino es la suya</strong> (la del gateway, no la de B): saca el header de enlace y sube el datagrama.',
+    fromX: XSW, toX: XRA, layers: ['tcp', 'ip', 'eth'], ethText: ETH_A, ipText: IP1,
+    highlight: { device: 'ra', layers: ['Enlace'] },
+    msg: 'La <strong>TRAMA</strong> llega al <strong>router A</strong> (el gateway de la red de A). Su <strong>capa de enlace</strong> verifica el <strong>CRC ✔</strong> y ve que la <strong>MAC destino es la suya</strong>: saca el header de enlace y sube el datagrama.',
   },
   {
-    fromX: XR, toX: XR, layers: ['tcp', 'ip'], ipText: IP2,
-    highlight: { device: 'r', layers: ['Red'] },
-    msg: 'La <strong>capa de red</strong> abre el <strong>DATAGRAMA</strong>: hace el <strong>lookup por LPM</strong> en su tabla de reenvío, <strong>decrementa el TTL (64 → 63)</strong> y recalcula el checksum. La <strong>IP destino NO cambia</strong> — el router es solo un salto, no el destino final.',
+    fromX: XRA, toX: XRA, layers: ['tcp', 'ip'], ipText: IP2,
+    highlight: { device: 'ra', layers: ['Red'] },
+    msg: 'La <strong>capa de red</strong> de router A abre el <strong>DATAGRAMA</strong>: hace el <strong>lookup por LPM</strong> en su tabla de reenvío, <strong>decrementa el TTL (64 → 63)</strong> y recalcula el checksum. La <strong>IP destino NO cambia</strong> — el router es solo un salto.',
   },
   {
-    fromX: XR, toX: XR, layers: ['tcp', 'ip', 'eth'], appear: 'eth', ethText: ETH2, ipText: IP2,
-    highlight: { device: 'r', layers: ['Enlace'] },
-    msg: 'Baja de nuevo a <strong>enlace</strong>, que arma una <strong>TRAMA NUEVA</strong> para el próximo salto: <strong>MACs nuevas</strong> (router → B) y un <strong>CRC nuevo</strong>, pero las <strong>MISMAS IPs</strong>. En el panel: la MAC se reescribe en cada salto; la IP, nunca.',
+    fromX: XRA, toX: XRA, layers: ['tcp', 'ip', 'eth'], appear: 'eth', ethText: ETH_WAN, ipText: IP2,
+    highlight: { device: 'ra', layers: ['Enlace'] },
+    msg: 'Baja de nuevo a <strong>enlace</strong>, que arma una <strong>TRAMA NUEVA</strong> para el próximo salto: <strong>MACs nuevas</strong> (router A → router B) y un <strong>CRC nuevo</strong>, pero el <strong>MISMO datagrama</strong>. La MAC se reescribe en cada salto; la IP, nunca.',
   },
   {
-    fromX: XR, toX: XB, layers: ['tcp', 'ip', 'eth'], ethText: ETH2, ipText: IP2,
+    fromX: XRA, toX: XRB, layers: ['tcp', 'ip', 'eth'], ethText: ETH_WAN, ipText: IP2,
+    highlight: { device: 'rb', layers: ['Enlace'] },
+    msg: 'La trama <strong>cruza a la otra red</strong> por el enlace entre routers y llega al <strong>router B</strong> (el gateway de la red de B). Su <strong>capa de enlace</strong> verifica el <strong>CRC ✔</strong>: la MAC destino es la suya, saca el header y sube el datagrama.',
+  },
+  {
+    fromX: XRB, toX: XRB, layers: ['tcp', 'ip'], ipText: IP3,
+    highlight: { device: 'rb', layers: ['Red'] },
+    msg: 'La <strong>capa de red</strong> de router B abre el <strong>DATAGRAMA</strong>: otro <strong>lookup por LPM</strong> y <strong>decrementa el TTL de nuevo (63 → 62)</strong> — cada router que atraviesa lo baja en 1. La IP destino sigue intacta.',
+  },
+  {
+    fromX: XRB, toX: XRB, layers: ['tcp', 'ip', 'eth'], appear: 'eth', ethText: ETH_B, ipText: IP3,
+    highlight: { device: 'rb', layers: ['Enlace'] },
+    msg: 'Router B baja a <strong>enlace</strong> y arma la <strong>TRAMA NUEVA</strong> del último tramo: <strong>MACs del enlace local de B</strong> (router B → B) y un <strong>CRC nuevo</strong>. El datagrama, otra vez, no se toca.',
+  },
+  {
+    fromX: XRB, toX: XB, layers: ['tcp', 'ip', 'eth'], ethText: ETH_B, ipText: IP3,
     highlight: { device: 'b', layers: ['Enlace'] },
     msg: 'La trama llega al <strong>Host B</strong>. Su <strong>capa de enlace</strong> verifica el <strong>CRC ✔</strong> (si estuviera mal, la descarta en silencio). Como la MAC destino es la suya, saca el header y sube el datagrama.',
   },
   {
-    fromX: XB, toX: XB, layers: ['tcp', 'ip'], ipText: IP2,
+    fromX: XB, toX: XB, layers: ['tcp', 'ip'], ipText: IP3,
     highlight: { device: 'b', layers: ['Red'] },
     msg: '<strong>Red</strong> de B: abre el <strong>DATAGRAMA</strong>, la IP destino <strong>es la mía ✔</strong>. El campo <em>protocol=6</em> le dice que arriba espera TCP → sube el segmento a transporte.',
   },
@@ -99,7 +121,7 @@ const STEPS: EncapStep[] = [
 ];
 
 interface Device {
-  id: 'a' | 'sw' | 'r' | 'b';
+  id: DeviceId;
   x: number;
   name: string;
   color: string;
@@ -109,7 +131,8 @@ interface Device {
 const DEVICES: Device[] = [
   { id: 'a', x: XA, name: 'Host A', color: '#4caf50', layers: ['Aplicación', 'Transporte', 'Red', 'Enlace'] },
   { id: 'sw', x: XSW, name: 'Switch', color: '#607d8b', layers: ['Enlace'] },
-  { id: 'r', x: XR, name: 'Router', color: '#f68c1f', layers: ['Red', 'Enlace'] },
+  { id: 'ra', x: XRA, name: 'Router A', color: '#f68c1f', layers: ['Red', 'Enlace'] },
+  { id: 'rb', x: XRB, name: 'Router B', color: '#f68c1f', layers: ['Red', 'Enlace'] },
   { id: 'b', x: XB, name: 'Host B', color: '#1976d2', layers: ['Aplicación', 'Transporte', 'Red', 'Enlace'] },
 ];
 
@@ -156,7 +179,12 @@ const DEVICES: Device[] = [
           </div>
         }
 
-        <!-- línea de la red -->
+        <!-- separador entre las dos redes: A + switch + router A | router B + host B -->
+        <div class="netdiv"></div>
+        <div class="netlabel left">🏠 Red de A · local</div>
+        <div class="netlabel right">🌐 Red de B · remota</div>
+
+        <!-- línea de la red (medio físico, a la altura de las pilas) -->
         <div class="wire"></div>
 
         <!-- dispositivos con sus pilas -->
@@ -229,7 +257,11 @@ const DEVICES: Device[] = [
       border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
       padding-bottom: 8px;
     }
-    .wire { position: absolute; left: 4%; right: 4%; bottom: 150px; border-top: 2px dashed #39445f; }
+    .wire { position: absolute; left: 4%; right: 4%; bottom: 135px; border-top: 2px dashed #39445f; z-index: 0; }
+    .netdiv { position: absolute; left: 53.5%; top: 24px; bottom: 44px; border-left: 2px dashed #4a5578; z-index: 1; }
+    .netlabel { position: absolute; top: 8px; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.3px; color: #c3ccea; background: rgba(35, 43, 66, 0.85); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; z-index: 4; }
+    .netlabel.left { left: 4%; }
+    .netlabel.right { right: 4%; }
 
     .pkt { position: absolute; top: 18px; transform: translateX(-50%); z-index: 3; width: 252px; }
     .pkt-tag { text-align: center; margin-top: 6px; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.6px; color: #8b95b5; text-transform: uppercase; }
@@ -344,7 +376,7 @@ export class EncapAnim extends SteppedAnim implements OnDestroy {
 
   curEthText(): string {
     const i = this.index();
-    return i >= 0 ? (STEPS[i].ethText ?? ETH1) : ETH1;
+    return i >= 0 ? (STEPS[i].ethText ?? ETH_A) : ETH_A;
   }
   curIpText(): string {
     const i = this.index();
@@ -354,16 +386,17 @@ export class EncapAnim extends SteppedAnim implements OnDestroy {
   /** estado de las cabeceras (direcciones) según el tramo del viaje */
   readonly hdr = computed(() => {
     const i = this.index();
-    const seg2 = i >= 7; // después de la re-encapsulación en el router
+    // 3 tramos de enlace: A→routerA, routerA→routerB, routerB→B
+    const seg = i >= 10 ? 3 : i >= 7 ? 2 : 1;
     return {
-      macSrc: seg2 ? MAC_RTR_WAN : MAC_A,
-      macDst: seg2 ? MAC_B : MAC_RTR_LAN,
+      macSrc: seg === 3 ? MAC_RB_LAN : seg === 2 ? MAC_RA_WAN : MAC_A,
+      macDst: seg === 3 ? MAC_B : seg === 2 ? MAC_RB_WAN : MAC_RA_LAN,
       ipSrc: IP_SRC,
       ipDst: IP_DST,
-      ttl: i >= 6 ? 63 : 64,
+      ttl: i >= 9 ? 62 : i >= 6 ? 63 : 64,
       portSrc: PORT_SRC,
       portDst: PORT_DST,
-      macChanged: i === 7,
+      macChanged: i === 7 || i === 10,
     };
   });
 

@@ -62,14 +62,19 @@ const STEPS: EncapStep[] = [
     msg: 'La trama viaja por el medio hasta el <strong>switch</strong>, que <strong>procesa solo hasta la capa de enlace</strong>: mira la MAC destino en su tabla y reenvía. <strong>Ni se entera</strong> de que adentro hay un datagrama IP — para él es carga opaca, y <strong>no toca las MACs</strong>.',
   },
   {
-    fromX: XSW, toX: XR, layers: ['tcp', 'ip'], disappear: 'eth', ethText: ETH1, ipText: IP2,
-    highlight: { device: 'r', layers: ['Red', 'Enlace'] },
-    msg: 'La trama llega al <strong>router</strong> (el gateway), que la <strong>DESENCAPSULA</strong> (la capa de red necesita el datagrama): lookup por <strong>LPM</strong> en su tabla, <strong>TTL 64 → 63</strong> y recalcula el checksum del header.',
+    fromX: XSW, toX: XR, layers: ['tcp', 'ip', 'eth'], ethText: ETH1, ipText: IP1,
+    highlight: { device: 'r', layers: ['Enlace'] },
+    msg: 'La <strong>TRAMA</strong> llega al <strong>router</strong> (su gateway). La <strong>capa de enlace</strong> verifica el <strong>CRC ✔</strong> y ve que la <strong>MAC destino es la suya</strong> (la del gateway, no la de B): saca el header de enlace y sube el datagrama.',
+  },
+  {
+    fromX: XR, toX: XR, layers: ['tcp', 'ip'], ipText: IP2,
+    highlight: { device: 'r', layers: ['Red'] },
+    msg: 'La <strong>capa de red</strong> abre el <strong>DATAGRAMA</strong>: hace el <strong>lookup por LPM</strong> en su tabla de reenvío, <strong>decrementa el TTL (64 → 63)</strong> y recalcula el checksum. La <strong>IP destino NO cambia</strong> — el router es solo un salto, no el destino final.',
   },
   {
     fromX: XR, toX: XR, layers: ['tcp', 'ip', 'eth'], appear: 'eth', ethText: ETH2, ipText: IP2,
     highlight: { device: 'r', layers: ['Enlace'] },
-    msg: 'Re-encapsula en una <strong>trama NUEVA</strong> para el próximo enlace: <strong>MACs nuevas</strong> (router → B), <strong>MISMAS IPs</strong>. Mirá el panel de abajo: la MAC se reescribe en cada salto; la IP, nunca.',
+    msg: 'Baja de nuevo a <strong>enlace</strong>, que arma una <strong>TRAMA NUEVA</strong> para el próximo salto: <strong>MACs nuevas</strong> (router → B) y un <strong>CRC nuevo</strong>, pero las <strong>MISMAS IPs</strong>. En el panel: la MAC se reescribe en cada salto; la IP, nunca.',
   },
   {
     fromX: XR, toX: XB, layers: ['tcp', 'ip', 'eth'], ethText: ETH2, ipText: IP2,
@@ -349,16 +354,16 @@ export class EncapAnim extends SteppedAnim implements OnDestroy {
   /** estado de las cabeceras (direcciones) según el tramo del viaje */
   readonly hdr = computed(() => {
     const i = this.index();
-    const seg2 = i >= 6; // después de la re-encapsulación en el router
+    const seg2 = i >= 7; // después de la re-encapsulación en el router
     return {
       macSrc: seg2 ? MAC_RTR_WAN : MAC_A,
       macDst: seg2 ? MAC_B : MAC_RTR_LAN,
       ipSrc: IP_SRC,
       ipDst: IP_DST,
-      ttl: i >= 5 ? 63 : 64,
+      ttl: i >= 6 ? 63 : 64,
       portSrc: PORT_SRC,
       portDst: PORT_DST,
-      macChanged: i === 6,
+      macChanged: i === 7,
     };
   });
 

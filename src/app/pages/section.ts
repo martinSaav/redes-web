@@ -30,6 +30,7 @@ import { Http2Detail } from '../components/detail/http2-detail';
 import { WpaDetail } from '../components/detail/wpa-detail';
 import { IpsecDetail } from '../components/detail/ipsec-detail';
 import { PlayoutDetail } from '../components/detail/playout-detail';
+import { TcpSim } from '../components/detail/tcp-sim';
 
 @Component({
   selector: 'app-section',
@@ -65,6 +66,7 @@ import { PlayoutDetail } from '../components/detail/playout-detail';
     WpaDetail,
     IpsecDetail,
     PlayoutDetail,
+    TcpSim,
   ],
   template: `
     @if (section(); as sec) {
@@ -115,6 +117,7 @@ import { PlayoutDetail } from '../components/detail/playout-detail';
               @case ('wpa-detail') { <app-wpa-detail /> }
               @case ('ipsec-detail') { <app-ipsec-detail /> }
               @case ('playout-detail') { <app-playout-detail /> }
+              @case ('tcp-sim') { <app-tcp-sim /> }
             }
           </article>
         }

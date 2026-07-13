@@ -1,89 +1,87 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, computed } from '@angular/core';
 import { SteppedAnim } from './stepped';
 
-interface Pos {
-  x: number;
-  y: number;
-}
-
-interface Card {
-  from: Pos;
-  to: Pos;
-  text: string;
-  color?: string;
-}
-
-type Hl = 'in' | 'fabric' | 'out' | 'proc' | 'sched';
+type Hl = 'term' | 'lookup' | 'fabric' | 'oqueue' | 'proc' | 'sched';
 
 interface RStep {
-  cards: Card[];
-  static?: boolean;
-  msg: string;
+  seg: [number, number] | null; // waypoints origen→destino del paquete (null = oculto)
   hl?: Hl[];
-  outQ?: number; // paquetes encolados en salida 2 al completar el paso
-  inQ?: boolean; // mostrar la cola HOL en la entrada 1
+  msg: string;
+  outQ?: number; // paquetes en la cola de salida 1 al completar el paso
+  land?: boolean; // el paquete entra a la cola al final del viaje
+  inQueue?: boolean; // el paquete está adentro de la cola (se dibuja como slot)
+  leave?: boolean; // el paquete sale de la cola (scheduling)
+  inHOL?: boolean;
+  contention?: boolean;
+  drop?: boolean;
   tableFlash?: boolean;
-  drop?: boolean; // ✖ en salida 2
 }
 
-const OUTSIDE1: Pos = { x: -6, y: 26 };
-const IN1: Pos = { x: 13, y: 26 };
-const IN2: Pos = { x: 13, y: 54 };
-const IN3: Pos = { x: 13, y: 82 };
-const FAB: Pos = { x: 47, y: 54 };
-const OUT1: Pos = { x: 83, y: 34 };
-const OUT2: Pos = { x: 83, y: 74 };
+/* Geometría (viewBox 200×130):
+   divider y=30 · proc y=4..22 · fabric x=90..116, y=46..118
+   filas de puertos: cy 62 (arriba) y 106 (abajo) */
+const CY1 = 62;
+const CY2 = 106;
 
-const PKT = 'dst 138.16.5.9';
+// waypoints del paquete: entrada 1 → fabric → salida 1
+const WP: { x: number; y: number }[] = [
+  { x: 0, y: CY1 }, // 0 entra
+  { x: 41, y: CY1 }, // 1 term + enlace
+  { x: 67, y: CY1 }, // 2 lookup
+  { x: 103, y: 82 }, // 3 fabric (centro)
+  { x: 138, y: CY1 }, // 4 cola de salida
+  { x: 203, y: CY1 }, // 5 afuera (se recorta al salir)
+];
 
 const STEPS: RStep[] = [
   {
-    cards: [], static: true, hl: ['in', 'fabric', 'out', 'proc'],
-    msg: 'La anatomía: <strong>puertos de entrada</strong> (terminan el enlace + lookup), <strong>switching fabric</strong> (la "tela" que cruza paquetes), <strong>puertos de salida</strong> (buffer + scheduling) y el <strong>procesador de ruteo</strong> arriba — el único que corre en software (control plane).',
+    seg: null, hl: ['proc'],
+    msg: 'La anatomía del libro (Fig. 4.4): <strong>puertos de entrada</strong> (terminación de línea → enlace → lookup), <strong>switch fabric</strong> en el centro, <strong>puertos de salida</strong> (cola → enlace → terminación) y arriba el <strong>procesador de ruteo</strong>. La línea punteada separa el <strong>control plane (software)</strong> del <strong>data plane (hardware)</strong>.',
   },
   {
-    cards: [{ from: OUTSIDE1, to: IN1, text: '📦 ' + PKT }], hl: ['in'],
-    msg: 'Llega un paquete al <strong>puerto de entrada 1</strong>: termina la señal física, valida la trama de capa 2 (CRC) y extrae el datagrama. Destino: <strong>138.16.5.9</strong>.',
+    seg: [0, 1], hl: ['term'],
+    msg: 'Llega un paquete al <strong>puerto de entrada 1</strong> (Fig. 4.5): la <strong>terminación de línea</strong> recupera los bits del medio físico y el <strong>procesamiento de enlace</strong> valida y <strong>desencapsula</strong> la trama → queda el datagrama. Destino: 138.16.5.9.',
   },
   {
-    cards: [{ from: IN1, to: IN1, text: '🔍 lookup LPM…' }], static: true, hl: ['in'], tableFlash: true,
-    msg: '<strong>LOOKUP en la entrada</strong>, contra la forwarding table (que el procesador copió ahí): matchean <code>138.16.0.0/16</code> y <code>138.16.5.0/24</code> → gana el <strong>más largo (/24) → salida 2</strong>. En hardware <strong>TCAM</strong>: ~1 ciclo, a <em>line speed</em> — antes de que termine de llegar el siguiente paquete.',
+    seg: [1, 2], hl: ['lookup'], tableFlash: true,
+    msg: '<strong>Lookup en el propio puerto de entrada</strong>, contra la copia local de la forwarding table: matchean <code>138.16.0.0/16</code> y <code>138.16.5.0/24</code> → gana el más largo (<strong>LPM</strong>) → salida 1. En hardware (<strong>TCAM</strong>): ~1 ciclo, a <em>line speed</em>.',
   },
   {
-    cards: [{ from: IN1, to: FAB, text: '📦 → salida 2' }], hl: ['fabric'],
-    msg: 'Cruza el <strong>fabric</strong>. Tres generaciones: por <strong>memoria</strong> (el paquete sube a RAM y baja — lento), por <strong>bus compartido</strong> (uno por vez) y por <strong>crossbar</strong> (transferencias EN PARALELO… si no compiten por la misma salida).',
+    seg: [2, 3], hl: ['fabric'],
+    msg: 'Cruza el <strong>switch fabric</strong> hacia el puerto elegido. Tres generaciones: por <strong>memoria</strong> (sube a RAM y baja), por <strong>bus</strong> (uno por vez) y por <strong>crossbar</strong> (transferencias en paralelo… si no compiten por la misma salida).',
   },
   {
-    cards: [{ from: FAB, to: OUT2, text: '📦 ' + PKT }], outQ: 1, hl: ['out'],
-    msg: 'Llega al <strong>puerto de salida 2</strong> y se encola: el enlace transmite de a un paquete (d_trans = L/R por cada uno).',
+    seg: [3, 4], hl: ['oqueue'], outQ: 1, land: true,
+    msg: 'Llega al <strong>puerto de salida 1</strong> (Fig. 4.7) y entra a la <strong>cola</strong> (buffer management): el enlace transmite de a un paquete (d_trans = L/R por cada uno). Nuestro paquete es el amarillo.',
   },
   {
-    cards: [
-      { from: IN2, to: FAB, text: '📦 → salida 2', color: '#ce93d8' },
-      { from: IN3, to: FAB, text: '📦 → salida 2', color: '#80d8ff' },
-    ],
-    outQ: 3, hl: ['fabric', 'out'],
-    msg: '<strong>El problema</strong>: dos entradas más quieren la <strong>MISMA salida</strong>. El crossbar los pasa… pero el enlace de salida no acelera → la <strong>cola de salida crece</strong>. Acá es donde vive d_queue.',
+    seg: null, hl: ['oqueue', 'fabric'], outQ: 3, inQueue: true, contention: true,
+    msg: '<strong>El problema típico</strong>: otras entradas mandan a la <strong>MISMA salida</strong> (mirá los paquetes azules cruzando el fabric). El fabric los pasa, pero el enlace no acelera → la <strong>cola de salida crece</strong>. Acá vive el <strong>d_queue</strong>.',
   },
   {
-    cards: [], static: true, inQ: true, hl: ['in'],
-    msg: 'Y si el <strong>fabric</strong> fuera el cuello, las colas se arman en la <strong>ENTRADA</strong> → <strong>HOL blocking</strong>: el paquete del frente (esperando la salida 2, ocupada) <strong>traba al de atrás</strong>… aunque la salida 3 de ese otro esté LIBRE. Mirá la cola de la entrada 1.',
+    seg: null, hl: ['lookup'], outQ: 3, inQueue: true, inHOL: true,
+    msg: 'Y si el cuello fuera el <strong>fabric</strong>, las colas se arman en la <strong>ENTRADA</strong> → <strong>HOL blocking</strong>: el paquete del frente (rojo, espera una salida ocupada) <strong>traba al de atrás</strong> (verde), aunque la salida de ESE esté libre.',
   },
   {
-    cards: [{ from: IN2, to: OUT2, text: '📦 uno más…', color: '#ffd54f' }], outQ: 3, drop: true, hl: ['out'],
-    msg: 'El buffer es <strong>FINITO</strong>: llega uno más con la cola llena → <strong>DESCARTE (drop-tail) ✖</strong>. Los <strong>AQM</strong> (RED, CoDel) descartan/marcan <em>antes</em> de llenarse (con <strong>ECN</strong> marcan en vez de tirar). ¿Cuánto buffer? <span class="formula">B = RTT·C/√N</span> — y demasiado buffer = <strong>bufferbloat</strong>.',
+    seg: null, hl: ['oqueue'], outQ: 3, inQueue: true, drop: true,
+    msg: 'El buffer es <strong>finito</strong>: llega uno más con la cola llena → <strong>descarte (drop-tail) ✖</strong>. Los <strong>AQM</strong> (RED, CoDel) descartan/marcan <em>antes</em> de llenarse (con <strong>ECN</strong> marcan en vez de tirar). Buffer: <span class="formula">B = RTT·C/√N</span>; demasiado = <strong>bufferbloat</strong>.',
   },
   {
-    cards: [], static: true, outQ: 2, hl: ['sched'],
-    msg: '<strong>SCHEDULING</strong>: ¿quién sale primero de la cola? <strong>FIFO</strong> · <strong>prioridad</strong> (riesgo: inanición) · <strong>round robin</strong> · <strong>WFQ</strong> (a la clase i se le garantiza w<sub>i</sub>/Σw<sub>j</sub> del enlace — la base práctica del QoS). El scheduler drena la cola hacia el enlace.',
+    seg: [4, 5], hl: ['sched', 'oqueue'], outQ: 0, leave: true,
+    msg: '<strong>Scheduling</strong>: ¿quién sale primero? <strong>FIFO</strong> · <strong>prioridad</strong> (riesgo: inanición) · <strong>round robin</strong> · <strong>WFQ</strong> (garantiza a la clase i una fracción w<sub>i</sub>/Σw<sub>j</sub> del enlace — la base del QoS). El paquete pasa por <strong>enlace (encapsula)</strong> y <strong>terminación de línea</strong>, y afuera.',
   },
 ];
 
 const TABLE = [
-  { pfx: '138.16.0.0/16', out: '2', match: true, win: false },
-  { pfx: '138.16.5.0/24', out: '2', match: true, win: true },
-  { pfx: '200.23.16.0/20', out: '1', match: false, win: false },
-  { pfx: '0.0.0.0/0 (default)', out: '3', match: false, win: false },
+  { pfx: '138.16.0.0/16', out: '1', match: true, win: false },
+  { pfx: '138.16.5.0/24', out: '1', match: true, win: true },
+  { pfx: '200.23.16.0/20', out: '2', match: false, win: false },
+  { pfx: '0.0.0.0/0 (def)', out: '2', match: false, win: false },
+];
+
+const PORT_ROWS = [
+  { n: 1, cy: CY1 },
+  { n: 2, cy: CY2 },
 ];
 
 @Component({
@@ -93,8 +91,8 @@ const TABLE = [
     <div class="anim">
       <div class="head">
         <div class="titles">
-          <div class="title">🔧 Adentro de un router: entrada → fabric → salida</div>
-          <div class="caption">Dónde se hace el lookup, dónde se arman las colas, dónde se pierde un paquete y quién decide quién sale.</div>
+          <div class="title">🔧 Adentro de un router (arquitectura del Kurose, Fig. 4.4)</div>
+          <div class="caption">Puertos de entrada → switch fabric → puertos de salida, con el procesador de ruteo en el control plane.</div>
         </div>
         <div class="controls">
           <button class="ctl" (click)="prev()" [disabled]="index() < 0">⏮</button>
@@ -112,72 +110,118 @@ const TABLE = [
 
       <div class="board">
         <div class="canvas">
-          <!-- procesador de ruteo -->
-          <div class="proc" [class.hot]="hot('proc')">
-            🧠 Procesador de ruteo <small>control plane · OSPF/BGP o SDN · escribe la tabla ↓</small>
-          </div>
-          <svg class="wires" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <line class="ctl-line" x1="47" y1="20" x2="47" y2="40" />
-            <line [attr.x1]="in1.x + 6" [attr.y1]="in1.y" x2="41" [attr.y2]="fab.y - 8" />
-            <line [attr.x1]="in2.x + 6" [attr.y1]="in2.y" x2="41" [attr.y2]="fab.y" />
-            <line [attr.x1]="in3.x + 6" [attr.y1]="in3.y" x2="41" [attr.y2]="fab.y + 8" />
-            <line x1="53" [attr.y1]="fab.y - 6" [attr.x2]="out1.x - 6" [attr.y2]="out1.y" />
-            <line x1="53" [attr.y1]="fab.y + 6" [attr.x2]="out2.x - 6" [attr.y2]="out2.y" />
-          </svg>
+          <svg viewBox="0 0 200 130" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <marker id="rarrow" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+                <path d="M0,0 L5,2.5 L0,5 Z" fill="#6b7f9c" />
+              </marker>
+            </defs>
 
-          <!-- entradas -->
-          <div class="port inp" [class.hot]="hot('in')" [style.left.%]="in1.x" [style.top.%]="in1.y">
-            <strong>entrada 1</strong>
-            @if (showInQ()) {
-              <div class="holq">
-                <span class="hpkt blocked">→2 ⛔</span>
-                <span class="hpkt free">→3 ✔</span>
-              </div>
+            <!-- separador control plane / data plane -->
+            <line x1="0" y1="30" x2="200" y2="30" class="divider" />
+            <text x="197" y="27" text-anchor="end" class="plane">control plane · software ↑</text>
+            <text x="197" y="37" text-anchor="end" class="plane">data plane · hardware ↓</text>
+
+            <!-- procesador de ruteo -->
+            <g [class.hot]="hot('proc')">
+              <rect x="72" y="4" width="56" height="18" rx="4" class="proc" />
+              <text x="100" y="12" text-anchor="middle" class="proc-t">🧠 procesador de ruteo</text>
+              <text x="100" y="19" text-anchor="middle" class="proc-s">OSPF/BGP · o controlador SDN</text>
+            </g>
+            @for (p of portRows; track 'c' + p.n) {
+              <line x1="94" y1="22" x2="70" [attr.y2]="p.cy - 12" class="ctrlarrow" />
+              <line x1="106" y1="22" x2="138" [attr.y2]="p.cy - 12" class="ctrlarrow" />
             }
-          </div>
-          <div class="port inp" [class.hot]="hot('in')" [style.left.%]="in2.x" [style.top.%]="in2.y">
-            <strong>entrada 2</strong>
-          </div>
-          <div class="port inp" [class.hot]="hot('in')" [style.left.%]="in3.x" [style.top.%]="in3.y">
-            <strong>entrada 3</strong>
-          </div>
 
-          <!-- fabric -->
-          <div class="fabric" [class.hot]="hot('fabric')" [style.left.%]="fab.x" [style.top.%]="fab.y">
-            <strong>⬒ switching fabric</strong>
-            <small>crossbar</small>
-          </div>
+            <!-- SWITCH FABRIC -->
+            <rect x="90" y="46" width="26" height="72" rx="5" class="fabric" [class.hot]="hot('fabric')" />
+            <text x="103" y="76" text-anchor="middle" class="fab-t">switch</text>
+            <text x="103" y="84" text-anchor="middle" class="fab-t">fabric</text>
+            <text x="103" y="92" text-anchor="middle" class="fab-s">crossbar</text>
 
-          <!-- salidas -->
-          <div class="port outp" [class.hot]="hot('out') || hot('sched')" [style.left.%]="out1.x" [style.top.%]="out1.y">
-            <strong>salida 1</strong>
-            <div class="q"><span class="slot"></span><span class="slot"></span><span class="slot"></span></div>
-            <small>enlace 1 Gbps</small>
-          </div>
-          <div class="port outp" [class.hot]="hot('out') || hot('sched')" [style.left.%]="out2.x" [style.top.%]="out2.y">
-            <strong>salida 2 @if (hot('sched')) { <em class="schedtag">scheduler: WFQ</em> }</strong>
-            <div class="q">
-              @for (s of [0, 1, 2]; track s) {
-                <span class="slot" [class.full]="s < outQ()"></span>
+            <!-- PUERTOS DE ENTRADA (Fig. 4.5) -->
+            @for (p of portRows; track 'in' + p.n) {
+              <g>
+                <rect x="6" [attr.y]="p.cy - 11" width="78" height="22" rx="5" class="portframe" />
+                <text x="10" [attr.y]="p.cy - 14" class="portlab">puerto de entrada {{ p.n }}</text>
+                <line x1="0" [attr.y1]="p.cy" x2="5" [attr.y2]="p.cy" class="flow" marker-end="url(#rarrow)" />
+                <rect x="9" [attr.y]="p.cy - 8" width="20" height="16" rx="2" class="cell" [class.hot]="hot('term') && p.n === 1" />
+                <text x="19" [attr.y]="p.cy - 1" text-anchor="middle" class="cell-t">term. de</text>
+                <text x="19" [attr.y]="p.cy + 5" text-anchor="middle" class="cell-t">línea</text>
+                <rect x="31" [attr.y]="p.cy - 8" width="20" height="16" rx="2" class="cell" [class.hot]="hot('term') && p.n === 1" />
+                <text x="41" [attr.y]="p.cy - 1" text-anchor="middle" class="cell-t">enlace</text>
+                <text x="41" [attr.y]="p.cy + 5" text-anchor="middle" class="cell-t">(desenc.)</text>
+                <rect x="53" [attr.y]="p.cy - 8" width="28" height="16" rx="2" class="cell" [class.hot]="hot('lookup') && p.n === 1" />
+                <text x="67" [attr.y]="p.cy - 1" text-anchor="middle" class="cell-t">lookup +</text>
+                <text x="67" [attr.y]="p.cy + 5" text-anchor="middle" class="cell-t">reenvío</text>
+                <line x1="84" [attr.y1]="p.cy" x2="89" [attr.y2]="fabY(p.cy)" class="flow" marker-end="url(#rarrow)" />
+              </g>
+            }
+
+            <!-- PUERTOS DE SALIDA (Fig. 4.7) -->
+            @for (p of portRows; track 'out' + p.n) {
+              <g>
+                <rect x="122" [attr.y]="p.cy - 11" width="74" height="22" rx="5" class="portframe" />
+                <text x="126" [attr.y]="p.cy - 14" class="portlab">puerto de salida {{ p.n }}</text>
+                <line x1="116" [attr.y1]="fabY(p.cy)" x2="121" [attr.y2]="p.cy" class="flow" marker-end="url(#rarrow)" />
+                <rect x="125" [attr.y]="p.cy - 8" width="26" height="16" rx="2" class="cell" [class.hot]="(hot('oqueue') || hot('sched')) && p.n === 1" />
+                <text x="138" [attr.y]="p.cy - 3.5" text-anchor="middle" class="cell-t">cola</text>
+                @if (p.n === 1) {
+                  @for (s of [0, 1, 2]; track s) {
+                    <rect [attr.x]="128 + s * 7" [attr.y]="p.cy - 0.5" width="5" height="6.5" rx="1"
+                          class="qslot"
+                          [class.full]="s < queueView().filled"
+                          [class.mine]="s === queueView().mine" />
+                  }
+                  @if (showDrop()) {
+                    <text x="149" [attr.y]="p.cy + 5.5" text-anchor="middle" class="dropx">✖</text>
+                  }
+                } @else {
+                  <rect x="128" [attr.y]="p.cy - 0.5" width="5" height="6.5" rx="1" class="qslot" />
+                  <rect x="135" [attr.y]="p.cy - 0.5" width="5" height="6.5" rx="1" class="qslot" />
+                  <rect x="142" [attr.y]="p.cy - 0.5" width="5" height="6.5" rx="1" class="qslot" />
+                }
+                <rect x="153" [attr.y]="p.cy - 8" width="19" height="16" rx="2" class="cell" />
+                <text x="162.5" [attr.y]="p.cy - 1" text-anchor="middle" class="cell-t">enlace</text>
+                <text x="162.5" [attr.y]="p.cy + 5" text-anchor="middle" class="cell-t">(encap.)</text>
+                <rect x="174" [attr.y]="p.cy - 8" width="19" height="16" rx="2" class="cell" />
+                <text x="183.5" [attr.y]="p.cy - 1" text-anchor="middle" class="cell-t">term. de</text>
+                <text x="183.5" [attr.y]="p.cy + 5" text-anchor="middle" class="cell-t">línea</text>
+                <line x1="196" [attr.y1]="p.cy" x2="200" [attr.y2]="p.cy" class="flow" marker-end="url(#rarrow)" />
+              </g>
+            }
+
+            <!-- HOL blocking: cola dentro del puerto de entrada 1 (entre las dos filas) -->
+            @if (showHOL()) {
+              <g>
+                <rect x="70" y="75" width="8" height="6" rx="1.5" class="holpkt blocked" />
+                <text x="74" y="79.6" text-anchor="middle" class="holnum">1</text>
+                <rect x="59" y="75" width="8" height="6" rx="1.5" class="holpkt waiting" />
+                <text x="63" y="79.6" text-anchor="middle" class="holnum">2</text>
+                <line x1="78" y1="78" x2="84" y2="78" class="flow" marker-end="url(#rarrow)" />
+                <text x="45" y="87.5" text-anchor="middle" class="holtxt">⛔ HOL: el 1 espera una salida ocupada y traba al 2</text>
+              </g>
+            }
+
+            <!-- paquetes de contención cruzando el fabric hacia la salida 1 -->
+            @if (contendPkts(); as cps) {
+              @for (c of cps; track $index) {
+                <rect [attr.x]="c.x - 4" [attr.y]="c.y - 3" width="8" height="6" rx="1.5" class="cpkt" />
               }
-              @if (showDrop()) {
-                <span class="dropmark">✖</span>
-              }
-            </div>
-            <small>enlace 1 Gbps {{ outQ() >= 3 ? '· buffer LLENO' : '' }}</small>
-          </div>
+            }
 
-          @for (c of cards(); track $index) {
-            <div class="qcard" [style.left.%]="c.x" [style.top.%]="c.y"
-                 [style.border-color]="c.color" [style.box-shadow]="'0 0 12px ' + c.color + '55'">
-              {{ c.text }}
-            </div>
-          }
+            <!-- paquete principal -->
+            @if (pkt(); as p) {
+              <g [attr.transform]="'translate(' + p.x + ',' + p.y + ')'">
+                <rect x="-5" y="-4" width="10" height="8" rx="1.5" class="pkt" />
+              </g>
+            }
+          </svg>
         </div>
 
         <div class="side">
           <div class="tbl">
-            <div class="thead">📋 Forwarding table (FIB)</div>
+            <div class="thead">📋 Forwarding table (copiada en el puerto)</div>
             <div class="trow th"><span>prefijo</span><span>salida</span><span></span></div>
             @for (r of tableRows(); track r.pfx) {
               <div class="trow" [class.match]="r.showMatch" [class.win]="r.showWin">
@@ -186,13 +230,12 @@ const TABLE = [
                 <span class="pk">{{ r.showWin ? '✔ LPM' : r.showMatch ? 'match' : '' }}</span>
               </div>
             }
-            <div class="tfoot">la escribe el <b>control plane</b> (routing); la consulta el <b>data plane</b> (forwarding) en ns</div>
+            <div class="tfoot">la escribe el <b>control plane</b>; la consulta el <b>data plane</b> en ns</div>
           </div>
-
           <div class="notes">
-            <div class="nhead">🧭 Dónde duele</div>
-            <div class="nline"><b class="y">cola de entrada</b> → HOL blocking (fabric lento)</div>
-            <div class="nline"><b class="o">cola de salida</b> → lo común: d_queue, drops</div>
+            <div class="nhead">🧭 Dónde se arman las colas</div>
+            <div class="nline"><b class="y">entrada</b> → HOL blocking (si el fabric es lento)</div>
+            <div class="nline"><b class="o">salida</b> → lo común: d_queue, drops</div>
             <div class="nline"><b class="r">buffer lleno</b> → drop-tail / AQM (RED, CoDel)</div>
             <div class="nline"><b class="g">scheduler</b> → FIFO · prioridad · RR · WFQ</div>
           </div>
@@ -220,7 +263,7 @@ const TABLE = [
     .anim { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin: 18px 0; }
     .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
     .title { font-weight: 700; font-size: 1.02rem; color: #fff; }
-    .caption { color: var(--text-dim); font-size: 0.85rem; margin-top: 2px; max-width: 520px; }
+    .caption { color: var(--text-dim); font-size: 0.85rem; margin-top: 2px; }
     .controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .ctl { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: 0.9rem; }
     .ctl:hover:not(:disabled) { background: #2d3750; }
@@ -232,79 +275,63 @@ const TABLE = [
 
     .board { display: flex; gap: 12px; align-items: stretch; }
     .canvas {
-      position: relative; flex: 1; min-height: 340px;
-      background: radial-gradient(ellipse at 45% 55%, #202a40 0%, #171e2e 80%);
-      border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+      position: relative; flex: 1; min-width: 0;
+      background: radial-gradient(ellipse at 50% 50%, #1c2436 0%, #141a28 80%);
+      border: 1px solid var(--border); border-radius: 10px; overflow: hidden; padding: 6px;
     }
-    .wires { position: absolute; inset: 0; width: 100%; height: 100%; }
-    .wires line { stroke: #39445f; stroke-width: 0.6; vector-effect: non-scaling-stroke; }
-    .wires line.ctl-line { stroke: #7c3aed88; stroke-dasharray: 2 2; }
+    svg { width: 100%; height: auto; display: block; }
 
-    .proc {
-      position: absolute; left: 50%; top: 5%; transform: translateX(-50%); z-index: 2;
-      background: #4a2f7d; border: 1.5px solid rgba(0,0,0,0.25); border-radius: 10px;
-      color: #fff; font-size: 0.76rem; font-weight: 700; padding: 6px 14px; text-align: center;
-      transition: box-shadow 0.25s, border-color 0.25s;
-    }
-    .proc small { display: block; font-weight: 500; font-size: 0.58rem; color: rgba(255,255,255,0.8); }
-    .proc.hot { border-color: #fff; box-shadow: 0 0 14px rgba(167,139,250,0.5); }
+    .divider { stroke: #3a4560; stroke-width: 0.6; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
+    .plane { fill: #5c6a8e; font-size: 3.6px; font-style: italic; }
 
-    .port {
-      position: absolute; transform: translate(-50%, -50%); z-index: 2;
-      display: flex; flex-direction: column; align-items: center; gap: 3px;
-      border-radius: 10px; padding: 7px 10px; min-width: 92px; text-align: center;
-      box-shadow: 0 3px 8px rgba(0,0,0,0.4); border: 1.5px solid rgba(0,0,0,0.25);
-      transition: box-shadow 0.25s, border-color 0.25s;
-    }
-    .port strong { font-size: 0.72rem; color: #fff; }
-    .port small { font-size: 0.56rem; color: rgba(255,255,255,0.8); font-family: Consolas, monospace; }
-    .port.inp { background: #2e7d32; }
-    .port.outp { background: #1565c0; }
-    .port.hot { border-color: #fff; box-shadow: 0 0 14px rgba(255,255,255,0.35); }
-    .schedtag { font-style: normal; font-size: 0.56rem; background: #16281c; color: #7ee787; border: 1px solid #2ea043; border-radius: 6px; padding: 0 5px; margin-left: 4px; }
+    .proc { fill: #4a2f7d; stroke: #7c3aed; stroke-width: 0.7; vector-effect: non-scaling-stroke; transition: filter 0.3s; }
+    .proc-t { fill: #fff; font-size: 4.6px; font-weight: 700; }
+    .proc-s { fill: #cbb8f0; font-size: 3.2px; }
+    g.hot .proc { filter: drop-shadow(0 0 4px rgba(167,139,250,0.9)); }
+    .ctrlarrow { stroke: #7c3aed77; stroke-width: 0.4; stroke-dasharray: 1.5 1.5; vector-effect: non-scaling-stroke; }
 
-    .fabric {
-      position: absolute; transform: translate(-50%, -50%); z-index: 2;
-      background: #b45309; border: 1.5px solid rgba(0,0,0,0.25); border-radius: 12px;
-      padding: 14px 16px; text-align: center; display: flex; flex-direction: column;
-      box-shadow: 0 3px 8px rgba(0,0,0,0.4); transition: box-shadow 0.25s, border-color 0.25s;
-    }
-    .fabric strong { font-size: 0.78rem; color: #fff; }
-    .fabric small { font-size: 0.58rem; color: rgba(255,255,255,0.85); }
-    .fabric.hot { border-color: #fff; box-shadow: 0 0 16px rgba(246,140,31,0.55); }
+    .fabric { fill: #7a3d0a; stroke: #f0a83b; stroke-width: 0.8; vector-effect: non-scaling-stroke; transition: fill 0.3s, filter 0.3s; }
+    .fabric.hot { fill: #b4610f; filter: drop-shadow(0 0 5px rgba(240,168,59,0.8)); }
+    .fab-t { fill: #fff; font-size: 5px; font-weight: 800; }
+    .fab-s { fill: #f7c98a; font-size: 3.4px; }
 
-    .q { display: flex; gap: 3px; align-items: center; }
-    .slot { width: 14px; height: 14px; border-radius: 3px; background: #0b0f19; border: 1px solid #2d3750; transition: background 0.3s, border-color 0.3s; }
-    .slot.full { background: #d29922; border-color: #ffd54f; box-shadow: 0 0 6px rgba(255,213,79,0.5); }
-    .dropmark { color: #ef5350; font-weight: 900; font-size: 1rem; margin-left: 2px; animation: buzz 0.4s linear infinite; }
-    @keyframes buzz { 50% { opacity: 0.4; } }
+    .portframe { fill: rgba(88,166,255,0.05); stroke: #3f4c6b; stroke-width: 0.6; vector-effect: non-scaling-stroke; }
+    .portlab { fill: #8b95b5; font-size: 3.6px; font-weight: 700; }
+    .cell { fill: #212b40; stroke: #3d4a68; stroke-width: 0.5; vector-effect: non-scaling-stroke; transition: fill 0.3s, stroke 0.3s, filter 0.3s; }
+    .cell.hot { fill: #14406b; stroke: #58a6ff; filter: drop-shadow(0 0 4px rgba(88,166,255,0.7)); }
+    .cell-t { fill: #aeb9d4; font-size: 3.4px; }
 
-    .holq { display: flex; gap: 3px; }
-    .hpkt { font-size: 0.54rem; font-weight: 800; font-family: Consolas, monospace; border-radius: 4px; padding: 1px 5px; }
-    .hpkt.blocked { background: #2b1618; color: #ef9a9a; border: 1px solid #ef5350; }
-    .hpkt.free { background: #16281c; color: #7ee787; border: 1px solid #2ea043; }
+    .flow { stroke: #6b7f9c; stroke-width: 0.6; vector-effect: non-scaling-stroke; }
 
-    .qcard {
-      position: absolute; transform: translate(-50%, -50%); z-index: 3;
-      background: rgba(8,12,22,0.96); border: 1.5px solid #ffd54f; border-radius: 8px;
-      padding: 4px 8px; font-family: Consolas, monospace; font-size: 0.64rem; color: #e6e9f0; white-space: nowrap;
-    }
+    .qslot { fill: #0b0f19; stroke: #2d3750; stroke-width: 0.4; vector-effect: non-scaling-stroke; transition: fill 0.35s, stroke 0.35s; }
+    .qslot.full { fill: #3949ab; stroke: #7986cb; }
+    .qslot.mine { fill: #ffd54f; stroke: #b8860b; }
+    .dropx { fill: #ef5350; font-size: 6px; font-weight: 900; }
 
-    .side { width: 288px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
+    .holpkt { stroke-width: 0.4; vector-effect: non-scaling-stroke; }
+    .holpkt.blocked { fill: #4a1d1d; stroke: #ef5350; }
+    .holpkt.waiting { fill: #16281c; stroke: #2ea043; }
+    .holnum { font-size: 4px; font-weight: 900; fill: #e6e9f0; }
+    .holtxt { fill: #ef9a9a; font-size: 3.4px; font-weight: 700; }
+    .cpkt { fill: #3949ab; stroke: #7986cb; stroke-width: 0.4; vector-effect: non-scaling-stroke; }
+
+    .pkt { fill: #ffd54f; stroke: #b8860b; stroke-width: 0.5; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 3px rgba(255,213,79,0.8)); }
+
+    .side { width: 270px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; }
     .tbl { background: #10151f; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
-    .thead { font-weight: 700; font-size: 0.82rem; margin-bottom: 8px; color: #ffd54f; }
-    .trow { display: grid; grid-template-columns: 1.6fr 0.5fr 0.7fr; gap: 4px; font-family: Consolas, monospace; font-size: 0.64rem; padding: 5px 6px; border-radius: 6px; align-items: center; }
-    .trow.th { color: #5c6a8e; font-weight: 700; text-transform: uppercase; font-size: 0.54rem; }
+    .thead { font-weight: 700; font-size: 0.8rem; margin-bottom: 8px; color: #ffd54f; }
+    .trow { display: grid; grid-template-columns: 1.6fr 0.5fr 0.7fr; gap: 4px; font-family: Consolas, monospace; font-size: 0.63rem; padding: 5px 6px; border-radius: 6px; align-items: center; }
+    .trow.th { color: #5c6a8e; font-weight: 700; text-transform: uppercase; font-size: 0.52rem; }
     .trow:not(.th) { background: #1a2132; border: 1px solid #2d3750; margin-bottom: 3px; }
     .trow.match { border-color: #d2992288; }
     .trow.win { border-color: #ffd54f; box-shadow: 0 0 10px rgba(255,213,79,0.3); background: #2b2a1a; }
     .pf { color: #80d8ff; } .po { color: #cfe3ff; text-align: center; font-weight: 800; }
-    .pk { color: #ffd54f; font-size: 0.56rem; font-weight: 800; text-align: right; }
+    .pk { color: #ffd54f; font-size: 0.55rem; font-weight: 800; text-align: right; }
     .tfoot { margin-top: 6px; border-top: 1px solid #232b3e; padding-top: 6px; font-size: 0.6rem; color: #8b95b5; line-height: 1.5; }
     .tfoot b { color: #cfe3ff; }
 
     .notes { background: #10151f; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
-    .nhead { font-weight: 700; font-size: 0.78rem; color: #79c0ff; margin-bottom: 6px; }
+    .nhead { font-weight: 700; font-size: 0.76rem; color: #79c0ff; margin-bottom: 6px; }
     .nline { font-size: 0.68rem; color: var(--text); line-height: 1.6; }
     .nline b.y { color: #ffd54f; } .nline b.o { color: #ffb74d; } .nline b.r { color: #ef9a9a; } .nline b.g { color: #7ee787; }
 
@@ -319,7 +346,7 @@ const TABLE = [
     .dot.past { background: #1f6feb; border-color: #1f6feb; }
     .dot.now { background: #ffd54f; border-color: #ffd54f; }
 
-    @media (max-width: 760px) {
+    @media (max-width: 780px) {
       .board { flex-direction: column; }
       .side { width: 100%; }
     }
@@ -327,34 +354,24 @@ const TABLE = [
 })
 export class RouterDetail extends SteppedAnim implements OnDestroy {
   readonly steps = STEPS;
-  readonly in1 = IN1;
-  readonly in2 = IN2;
-  readonly in3 = IN3;
-  readonly fab = FAB;
-  readonly out1 = OUT1;
-  readonly out2 = OUT2;
+  readonly portRows = PORT_ROWS;
 
   protected stepCount(): number {
     return STEPS.length;
   }
   protected override stepTravel(i: number): number {
-    return STEPS[i].static ? 500 : 1300;
+    const s = STEPS[i];
+    if (s.contention) return 1300; // los paquetes azules cruzan el fabric
+    return !s.seg || s.seg[0] === s.seg[1] ? 500 : 1300;
   }
   protected override stepDwell(): number {
     return 3400;
   }
 
-  readonly cards = computed(() => {
-    const i = this.index();
-    if (i < 0 || this.finished()) return [];
-    const p = this.ease(this.progress());
-    return STEPS[i].cards.map((c) => ({
-      text: c.text,
-      color: c.color ?? '#ffd54f',
-      x: c.from.x + (c.to.x - c.from.x) * p,
-      y: c.from.y + (c.to.y - c.from.y) * p,
-    }));
-  });
+  fabY(cy: number): number {
+    // punto de conexión con el fabric, hacia su centro vertical (82)
+    return cy < 82 ? cy + 8 : cy - 8;
+  }
 
   hot(h: Hl): boolean {
     const i = this.index();
@@ -362,29 +379,54 @@ export class RouterDetail extends SteppedAnim implements OnDestroy {
     return (STEPS[i].hl ?? []).includes(h);
   }
 
-  readonly outQ = computed(() => {
-    const i = this.index();
-    if (i < 0) return 0;
-    if (this.finished()) return 0;
-    const cur = STEPS[i].outQ;
-    if (cur !== undefined && this.progress() >= 1) return cur;
-    for (let s = i - (this.progress() >= 1 ? 0 : 1); s >= 0; s--) {
-      const q = STEPS[s].outQ;
-      if (q !== undefined) return q;
+  /** herencia de outQ del último paso completado */
+  private inheritQ(i: number): number {
+    for (let s = i; s >= 0; s--) {
+      if (STEPS[s].outQ !== undefined) return STEPS[s].outQ!;
     }
     return 0;
+  }
+
+  /** cuántos slots llenos y cuál es "nuestro" paquete (amarillo) */
+  readonly queueView = computed<{ filled: number; mine: number }>(() => {
+    const i = this.index();
+    if (i < 0 || this.finished()) return { filled: 0, mine: -1 };
+    const s = STEPS[i];
+    const done = this.progress() >= 1;
+    if (s.leave) {
+      // nuestro paquete salió primero; los 2 de atrás drenan al completar
+      return { filled: done ? 0 : 2, mine: -1 };
+    }
+    const filled = done ? (s.outQ ?? this.inheritQ(i - 1)) : this.inheritQ(i - 1);
+    const mine = filled > 0 && (s.inQueue || (s.land && done)) ? 0 : -1;
+    return { filled, mine };
   });
 
-  readonly showInQ = computed(() => {
+  showHOL(): boolean {
     const i = this.index();
     if (i < 0 || this.finished()) return false;
-    return !!STEPS[i].inQ && this.progress() >= 1;
-  });
-
-  readonly showDrop = computed(() => {
+    return !!STEPS[i].inHOL && this.progress() >= 1;
+  }
+  showDrop(): boolean {
     const i = this.index();
     if (i < 0 || this.finished()) return false;
     return !!STEPS[i].drop && this.progress() >= 1;
+  }
+
+  /** paquetes azules que cruzan del puerto de entrada 2 a la cola de salida 1 */
+  readonly contendPkts = computed(() => {
+    const i = this.index();
+    if (i < 0 || this.finished() || !STEPS[i].contention) return null;
+    const raw = this.progress();
+    if (raw >= 1) return null; // al llegar se vuelven slots llenos
+    const from = { x: 67, y: CY2 };
+    const to = { x: 136, y: CY1 + 2 };
+    const mk = (p: number) => ({
+      x: from.x + (to.x - from.x) * this.ease(p),
+      y: from.y + (to.y - from.y) * this.ease(p),
+    });
+    const p2 = Math.max(0, raw - 0.25) / 0.75;
+    return [mk(raw), mk(p2)];
   });
 
   readonly tableRows = computed(() => {
@@ -397,12 +439,24 @@ export class RouterDetail extends SteppedAnim implements OnDestroy {
     }));
   });
 
+  readonly pkt = computed(() => {
+    const i = this.index();
+    if (i < 0 || this.finished()) return null;
+    const s = STEPS[i];
+    if (!s.seg) return null;
+    const p = this.ease(this.progress());
+    if (s.land && this.progress() >= 1) return null; // ya está adentro de la cola (slot amarillo)
+    const a = WP[s.seg[0]];
+    const b = WP[s.seg[1]];
+    return { x: a.x + (b.x - a.x) * p, y: a.y + (b.y - a.y) * p };
+  });
+
   readonly statusMsg = computed(() => {
     if (this.finished()) {
-      return '<strong>El router en una frase</strong>: el <strong>data plane</strong> (entrada→fabric→salida) mueve paquetes en <strong>nanosegundos y en hardware</strong>; el <strong>control plane</strong> (procesador de ruteo, arriba) arma las tablas en <strong>segundos y en software</strong> — con OSPF/BGP distribuido… o con un controlador SDN que se las escribe desde afuera.';
+      return '<strong>El router en una frase</strong>: el <strong>data plane</strong> (entrada → fabric → salida) mueve paquetes en <strong>nanosegundos y en hardware</strong>; el <strong>control plane</strong> (procesador de ruteo, arriba de la línea) arma las tablas en <strong>segundos y en software</strong> — con OSPF/BGP distribuido, o con un controlador SDN que se las escribe desde afuera.';
     }
     const i = this.index();
-    if (i < 0) return 'Presioná ▶ Play: un paquete entra, se le hace lookup, cruza el fabric… y en el camino aparecen las colas, el descarte y el scheduling.';
+    if (i < 0) return 'Presioná ▶ Play: un paquete entra por un puerto, se le hace lookup, cruza el fabric… y en el camino aparecen las colas, el descarte y el scheduling.';
     return STEPS[i].msg;
   });
 

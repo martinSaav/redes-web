@@ -1,98 +1,65 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, computed } from '@angular/core';
 import { SteppedAnim } from './stepped';
 
-interface Pos {
-  x: number;
-  y: number;
-}
-
-type SegType = 'trans' | 'prop' | 'proc' | 'queue';
+type DelayId = 'proc' | 'queue' | 'trans' | 'prop';
 
 interface Seg {
-  type: SegType;
+  id: DelayId;
   name: string;
   ms: number;
-  detail: string;
+  formula: string;
+  color: string;
 }
 
-interface DelayStep {
-  from: Pos;
-  to: Pos;
-  text: string;
-  msg: string;
-  seg?: number; // índice del segmento que se agrega al completar el paso
-  static?: boolean;
-  showQueue?: boolean; // dibuja la cola en R1
-}
-
-const HOST: Pos = { x: 10, y: 45 };
-const R1: Pos = { x: 36, y: 45 };
-const R2: Pos = { x: 63, y: 45 };
-const SRV: Pos = { x: 90, y: 45 };
-
-const SEGS: Seg[] = [
-  { type: 'trans', name: 'd_trans @ host', ms: 12, detail: '12.000 bits ÷ 1 Mbps' },
-  { type: 'prop', name: 'd_prop @ enlace 1', ms: 5, detail: '1.000 km ÷ 2×10⁸ m/s' },
-  { type: 'proc', name: 'd_proc @ R1', ms: 0.1, detail: 'header + checksum + LPM (µs)' },
-  { type: 'queue', name: 'd_queue @ R1', ms: 24, detail: '2 paquetes adelante en el buffer' },
-  { type: 'trans', name: 'd_trans @ R1', ms: 12, detail: 'de nuevo L/R, enlace de 1 Mbps' },
-  { type: 'prop', name: 'd_prop @ enlace 2', ms: 10, detail: '2.000 km — el doble de distancia' },
-  { type: 'queue', name: 'd_proc + d_queue @ R2', ms: 0.1, detail: '¡cola vacía esta vez!' },
-  { type: 'trans', name: 'd_trans @ R2', ms: 12, detail: 'otra vez empujar los 12.000 bits' },
-  { type: 'prop', name: 'd_prop @ enlace 3', ms: 3, detail: '600 km hasta el servidor' },
-];
-
-const STEPS: DelayStep[] = [
-  {
-    from: HOST, to: HOST, text: '📦 L = 12.000 bits', static: true,
-    msg: 'Vamos a <strong>cronometrar</strong> un paquete de L = 12.000 bits por un camino de 3 enlaces de <strong>R = 1 Mbps</strong>. Mirá el cronómetro de la derecha: va sumando CADA retardo por separado.',
-  },
-  {
-    from: HOST, to: HOST, text: 'empujando bits al enlace…', static: true, seg: 0,
-    msg: '<strong>d_trans = L/R</strong> = 12.000 bits ÷ 1 Mbps = <strong>12 ms</strong>: el tiempo de "empujar" TODOS los bits al cable, del primero al último. Depende del <strong>tamaño</strong> y del <strong>ancho de banda</strong> — no de la distancia.',
-  },
-  {
-    from: HOST, to: R1, text: '⚡ bits viajando', seg: 1,
-    msg: '<strong>d_prop = d/s</strong> = 1.000 km ÷ 2×10⁸ m/s = <strong>5 ms</strong>: lo que tarda cada bit en RECORRER el cable. Depende de la <strong>distancia</strong>, no del ancho de banda. Son dos cosas distintas — la trampa clásica.',
-  },
-  {
-    from: R1, to: R1, text: '🔍 examinando header', static: true, seg: 2,
-    msg: '<strong>Store-and-forward</strong>: R1 esperó el paquete COMPLETO antes de poder reenviarlo. Ahora <strong>d_proc</strong> (~µs): chequear errores de bit y decidir la interfaz de salida con el lookup (LPM en TCAM). Casi gratis.',
-  },
-  {
-    from: R1, to: R1, text: '⏳ esperando en la cola…', static: true, seg: 3, showQueue: true,
-    msg: '<strong>d_queue = 24 ms</strong>: hay 2 paquetes ADELANTE en el buffer de salida (12 ms cada uno). Es el <strong>ÚNICO retardo variable</strong> — depende de cuánta gente llegó antes. Se caracteriza con la intensidad de tráfico <strong>La/R</strong>: cuando → 1, esta espera explota.',
-  },
-  {
-    from: R1, to: R1, text: 'empujando bits…', static: true, seg: 4,
-    msg: 'Le tocó el turno: otros <strong>12 ms de d_trans</strong> para poner el paquete en el segundo enlace. Fijate que d_trans se paga <strong>en cada salto</strong> — por eso el primer paquete tarda N·L/R en atravesar N enlaces.',
-  },
-  {
-    from: R1, to: R2, text: '⚡ 2.000 km', seg: 5,
-    msg: 'Segundo enlace, el doble de largo: <strong>d_prop = 10 ms</strong>. Un enlace satelital serían ~250 ms de d_prop aunque el ancho de banda fuera enorme: <strong>autopista ancha ≠ autopista corta</strong>.',
-  },
-  {
-    from: R2, to: R2, text: '✔ cola vacía', static: true, seg: 6,
-    msg: 'En R2, esta vez, <strong>la cola está VACÍA: d_queue ≈ 0</strong>. Mismo camino, otro momento, otro retardo — esa <strong>variación</strong> entre paquetes es exactamente el <strong>JITTER</strong> (lo que arruina una videollamada y se compensa con playout buffer).',
-  },
-  {
-    from: R2, to: R2, text: 'empujando bits…', static: true, seg: 7,
-    msg: 'Tercer <strong>d_trans: 12 ms</strong> más. Si el buffer de R2 hubiera estado LLENO, acá el paquete se <strong>descartaba</strong> (packet loss) — y lo repondría TCP desde el origen.',
-  },
-  {
-    from: R2, to: SRV, text: '⚡ último tramo', seg: 8,
-    msg: 'Último enlace, cortito: <strong>d_prop = 3 ms</strong>. Llegando…',
-  },
-];
-
-const COLORS: Record<SegType, string> = {
-  trans: '#ffd54f',
-  prop: '#58a6ff',
-  proc: '#9aa4bf',
-  queue: '#ef5350',
+/* Valores del ejemplo: L = 12.000 bits, R = 1 Mbps, d = 2.000 km, s = 2×10⁸ m/s.
+   2 paquetes adelante en la cola → d_queue = 2 × 12 ms. */
+const SEGS: Record<DelayId, Seg> = {
+  proc: { id: 'proc', name: 'd_proc', ms: 0.05, formula: 'examinar header + checksum + lookup', color: '#9aa4bf' },
+  queue: { id: 'queue', name: 'd_queue', ms: 24, formula: '2 paquetes adelante en el buffer', color: '#ef5350' },
+  trans: { id: 'trans', name: 'd_trans', ms: 12, formula: 'L/R = 12.000 bits ÷ 1 Mbps', color: '#ffd54f' },
+  prop: { id: 'prop', name: 'd_prop', ms: 10, formula: 'd/s = 2.000 km ÷ 2×10⁸ m/s', color: '#58a6ff' },
 };
 
-const TOTAL_MS = SEGS.reduce((a, s) => a + s.ms, 0); // 78.2
+const ORDER: DelayId[] = ['proc', 'queue', 'trans', 'prop'];
+
+interface DStep {
+  active: DelayId | null;
+  revealUpTo: number; // cuántos segmentos revelados en el cronómetro
+  msg: string;
+  queueDrain?: boolean; // los 2 paquetes de adelante van saliendo
+  streaming?: boolean; // el paquete se "empuja" al enlace (barra creciente)
+  onLink?: boolean; // el paquete viaja por el enlace hacia B
+}
+
+const STEPS: DStep[] = [
+  {
+    active: null, revealUpTo: 0,
+    msg: 'Un paquete llega al <strong>router A</strong> desde el host. Vamos a cronometrar los <strong>4 retardos</strong> que sufre en este nodo antes de estar del otro lado, en B. Cada etiqueta de abajo apunta a <strong>dónde</strong> ocurre cada uno.',
+  },
+  {
+    active: 'proc', revealUpTo: 1,
+    msg: '<strong>1 · Procesamiento (d_proc)</strong>: el router examina el header, chequea errores de bit y decide por qué interfaz sacarlo (lookup). Del orden de <strong>microsegundos</strong> — casi nada.',
+  },
+  {
+    active: 'queue', revealUpTo: 2, queueDrain: true,
+    msg: '<strong>2 · Cola (d_queue)</strong>: el paquete espera en el <strong>buffer de salida</strong> detrás de 2 paquetes que llegaron antes. Es el <strong>ÚNICO retardo variable</strong> — depende de la congestión → causa del <strong>jitter</strong>. Se caracteriza con la intensidad de tráfico <strong>La/R</strong>: si → 1, esta espera explota.',
+  },
+  {
+    active: 'trans', revealUpTo: 3, streaming: true,
+    msg: '<strong>3 · Transmisión (d_trans = L/R)</strong>: le toca el turno. El router <strong>empuja los L bits al enlace</strong>, del primero al último. Depende del <strong>tamaño del paquete</strong> y del <strong>ancho de banda R</strong> — NO de la distancia.',
+  },
+  {
+    active: 'prop', revealUpTo: 4, onLink: true,
+    msg: '<strong>4 · Propagación (d_prop = d/s)</strong>: ya en el enlace, cada bit <strong>recorre la distancia física</strong> hasta B a ~2×10⁸ m/s. Depende de la <strong>distancia</strong> — NO del ancho de banda. Acá está la trampa clásica: un enlace satelital tiene d_prop enorme aunque R sea gigante.',
+  },
+];
+
+// coordenadas en el sistema del SVG (0..100), compartidas con los divs (top/left en %)
+const HOST_X = 8;
+const RA_X = 38; // centro del router A
+const RB_X = 92;
+const HIWAY_Y = 30;
+const LINK_START = 50; // borde derecho del router A (salida)
 
 @Component({
   selector: 'app-delays-detail',
@@ -101,8 +68,8 @@ const TOTAL_MS = SEGS.reduce((a, s) => a + s.ms, 0); // 78.2
     <div class="anim">
       <div class="head">
         <div class="titles">
-          <div class="title">⏱ Los 4 retardos, cronometrados</div>
-          <div class="caption">Un paquete de 12.000 bits, 3 enlaces de 1 Mbps — y un cronómetro que separa cada componente del retardo.</div>
+          <div class="title">⏱ El retardo nodal en el router A</div>
+          <div class="caption">d_nodal = d_proc + d_queue + d_trans + d_prop — cada etiqueta apunta a dónde ocurre.</div>
         </div>
         <div class="controls">
           <button class="ctl" (click)="prev()" [disabled]="index() < 0">⏮</button>
@@ -120,74 +87,82 @@ const TOTAL_MS = SEGS.reduce((a, s) => a + s.ms, 0); // 78.2
 
       <div class="board">
         <div class="canvas">
-          <svg class="wires" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <line [attr.x1]="host.x" [attr.y1]="host.y" [attr.x2]="r1.x" [attr.y2]="r1.y" />
-            <line [attr.x1]="r1.x" [attr.y1]="r1.y" [attr.x2]="r2.x" [attr.y2]="r2.y" />
-            <line [attr.x1]="r2.x" [attr.y1]="r2.y" [attr.x2]="srv.x" [attr.y2]="srv.y" />
+          <svg class="scene" viewBox="0 0 100 62" preserveAspectRatio="none">
+            <!-- enlace host → router A -->
+            <line [attr.x1]="hostX + 4" [attr.y1]="hiway" x2="27" [attr.y2]="hiway" class="wire" />
+            <!-- enlace de salida router A → router B -->
+            <line [attr.x1]="linkStart" [attr.y1]="hiway" [attr.x2]="rbX - 4" [attr.y2]="hiway" class="wire out"
+                  [class.lit]="active() === 'prop' || active() === 'trans'" />
+
+            <!-- punteros de cada retardo hacia su zona -->
+            @for (pt of pointers; track pt.id) {
+              <line [attr.x1]="pt.zx" [attr.y1]="pt.zy" [attr.x2]="pt.lx" y2="50" class="ptr" [class.on]="active() === pt.id" />
+            }
           </svg>
 
-          <div class="linklabel" style="left: 23%; top: 30%">1 Mbps · 1.000 km</div>
-          <div class="linklabel" style="left: 49.5%; top: 30%">1 Mbps · 2.000 km</div>
-          <div class="linklabel" style="left: 76.5%; top: 30%">1 Mbps · 600 km</div>
-
-          <div class="node hostn" [class.active]="active(host)" [style.left.%]="host.x" [style.top.%]="host.y">
-            <strong>💻 Host</strong><small>origen</small>
-          </div>
-          <div class="node rn" [class.active]="active(r1)" [style.left.%]="r1.x" [style.top.%]="r1.y">
-            <strong>🧭 R1</strong><small>buffer de salida</small>
-          </div>
-          <div class="node rn" [class.active]="active(r2)" [style.left.%]="r2.x" [style.top.%]="r2.y">
-            <strong>🧭 R2</strong><small>buffer de salida</small>
-          </div>
-          <div class="node srvn" [class.active]="active(srv)" [style.left.%]="srv.x" [style.top.%]="srv.y">
-            <strong>🖥 Servidor</strong><small>destino</small>
+          <!-- host -->
+          <div class="node host" [style.left.%]="hostX" [style.top.%]="pct(hiway)">
+            <strong>💻 Host</strong>
           </div>
 
-          <!-- cola en R1 -->
-          @if (showQueue()) {
-            <div class="queue" [style.left.%]="r1.x" [style.top.%]="r1.y + 22">
-              <div class="qpkt other">pkt</div>
-              <div class="qpkt other">pkt</div>
-              <div class="qpkt mine">el nuestro</div>
-              <div class="qlabel">cola de salida de R1</div>
+          <!-- ROUTER A (grande, con procesamiento + buffer) -->
+          <div class="routerA" [style.left.%]="raX" [style.top.%]="pct(hiway)">
+            <div class="ra-proc" [class.lit]="active() === 'proc'">
+              <span class="ra-ico">⚙️</span>
+              <span class="ra-lab">router A</span>
             </div>
+            <div class="ra-buf" [class.lit]="active() === 'queue'">
+              @for (s of [0, 1, 2]; track s) {
+                <span class="slot" [class.ahead]="aheadFull(s)" [class.mine]="mineSlot() === s"></span>
+              }
+            </div>
+          </div>
+
+          <!-- router B -->
+          <div class="node routerB" [style.left.%]="rbX" [style.top.%]="pct(hiway)">
+            <strong>🧭 Router B</strong>
+          </div>
+
+          <!-- paquete que viaja -->
+          @if (packet(); as p) {
+            <div class="packet" [class.stream]="p.stream" [style.left.%]="p.x" [style.top.%]="pct(hiway)"
+                 [style.width.px]="p.w">📦</div>
           }
 
-          @if (card(); as c) {
-            <div class="pkt" [style.left.%]="c.x" [style.top.%]="c.y">{{ c.text }}</div>
+          <!-- etiquetas de los 4 retardos (estilo libro) -->
+          @for (pt of pointers; track pt.id) {
+            <div class="zlabel" [class.on]="active() === pt.id" [style.left.%]="pt.lx" [style.top.%]="pct(51)">
+              <span class="zname" [style.color]="seg(pt.id).color">{{ seg(pt.id).name }}</span>
+              <span class="ztxt">{{ pt.short }}</span>
+            </div>
           }
         </div>
 
         <div class="timer">
-          <div class="thead">⏱ Cronómetro del paquete</div>
-          @for (s of visibleSegs(); track $index) {
-            <div class="seg" [class.flash]="s.flash">
-              <i [style.background]="s.color"></i>
-              <div class="seginfo">
-                <span class="segname">{{ s.name }}</span>
-                <span class="segdetail">{{ s.detail }}</span>
+          <div class="thead">⏱ Cronómetro del retardo nodal</div>
+          @for (r of rows(); track r.id) {
+            <div class="seg" [class.lit]="active() === r.id" [class.flash]="r.flash">
+              <i [style.background]="r.color"></i>
+              <div class="sinfo">
+                <span class="sname">{{ r.name }}</span>
+                <span class="sform">{{ r.formula }}</span>
               </div>
-              <span class="segms">{{ s.ms }} ms</span>
+              <span class="sms">{{ fmt(r.ms) }} ms</span>
             </div>
           }
-          @if (visibleSegs().length === 0) {
-            <div class="tempty">(todavía no arrancó el cronómetro)</div>
+          @if (rows().length === 0) {
+            <div class="tempty">(el cronómetro arranca con el primer retardo)</div>
           }
           <div class="stack">
-            @for (s of visibleSegs(); track $index) {
-              <div class="chunk" [style.width.%]="(s.ms / totalMs) * 100" [style.background]="s.color"></div>
+            @for (r of rows(); track r.id) {
+              <div class="chunk" [style.width.%]="pctOfTotal(r.ms)" [style.background]="r.color"></div>
             }
           </div>
           <div class="total">
-            <span>total acumulado</span>
-            <strong>{{ runningTotal() }} ms</strong>
+            <span>d_nodal acumulado</span>
+            <strong>{{ fmt(runningTotal()) }} ms</strong>
           </div>
-          <div class="legend">
-            <span><i style="background:#ffd54f"></i>d_trans</span>
-            <span><i style="background:#58a6ff"></i>d_prop</span>
-            <span><i style="background:#9aa4bf"></i>d_proc</span>
-            <span><i style="background:#ef5350"></i>d_queue</span>
-          </div>
+          <div class="tnote">La <b style="color:#ef5350">cola</b> es la tajada más grande — y la única que cambia paquete a paquete.</div>
         </div>
       </div>
 
@@ -212,7 +187,7 @@ const TOTAL_MS = SEGS.reduce((a, s) => a + s.ms, 0); // 78.2
     .anim { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin: 18px 0; }
     .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
     .title { font-weight: 700; font-size: 1.02rem; color: #fff; }
-    .caption { color: var(--text-dim); font-size: 0.85rem; margin-top: 2px; max-width: 480px; }
+    .caption { color: var(--text-dim); font-size: 0.85rem; margin-top: 2px; }
     .controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .ctl { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: 0.9rem; }
     .ctl:hover:not(:disabled) { background: #2d3750; }
@@ -225,61 +200,83 @@ const TOTAL_MS = SEGS.reduce((a, s) => a + s.ms, 0); // 78.2
     .board { display: flex; gap: 12px; align-items: stretch; }
     .canvas {
       position: relative; flex: 1; min-height: 300px;
-      background: radial-gradient(ellipse at 45% 45%, #202a40 0%, #171e2e 80%);
+      background: radial-gradient(ellipse at 40% 35%, #202a40 0%, #171e2e 80%);
       border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
     }
-    .wires { position: absolute; inset: 0; width: 100%; height: 100%; }
-    .wires line { stroke: #39445f; stroke-width: 0.5; stroke-dasharray: 1 1.6; vector-effect: non-scaling-stroke; }
-    .linklabel { position: absolute; transform: translate(-50%, -50%); font-size: 0.6rem; color: #5c6a8e; background: #171e2e; padding: 1px 7px; border-radius: 8px; border: 1px solid #2d3750; white-space: nowrap; }
+    .scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .wire { stroke: #4a5878; stroke-width: 0.7; vector-effect: non-scaling-stroke; transition: stroke 0.3s; }
+    .wire.out.lit { stroke: #58a6ff; stroke-width: 1.4; }
+    .ptr { stroke: #2d3750; stroke-width: 0.5; vector-effect: non-scaling-stroke; transition: stroke 0.3s; }
+    .ptr.on { stroke: #7d8ab0; stroke-width: 0.9; }
 
     .node {
-      position: absolute; transform: translate(-50%, -50%); z-index: 2;
-      display: flex; flex-direction: column; align-items: center; text-align: center;
-      border-radius: 10px; padding: 7px 11px; min-width: 88px;
-      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4); border: 1.5px solid rgba(0, 0, 0, 0.25);
-      transition: box-shadow 0.25s, border-color 0.25s;
-    }
-    .node strong { font-size: 0.78rem; color: #fff; }
-    .node small { font-size: 0.6rem; color: rgba(255, 255, 255, 0.85); }
-    .node.hostn { background: #2e7d32; }
-    .node.rn { background: #546e7a; }
-    .node.srvn { background: #1565c0; }
-    .node.active { border-color: #fff; box-shadow: 0 0 14px rgba(255, 255, 255, 0.35); }
-
-    .queue { position: absolute; transform: translateX(-50%); z-index: 2; display: flex; gap: 4px; align-items: center; }
-    .qpkt { border-radius: 6px; font-size: 0.6rem; font-weight: 700; padding: 4px 7px; font-family: Consolas, monospace; }
-    .qpkt.other { background: #3b3418; border: 1px solid #d29922; color: #ffd54f; }
-    .qpkt.mine { background: #16281c; border: 1.5px solid #2ea043; color: #7ee787; }
-    .qlabel { font-size: 0.58rem; color: #5c6a8e; margin-left: 4px; white-space: nowrap; }
-
-    .pkt {
       position: absolute; transform: translate(-50%, -50%); z-index: 3;
-      background: rgba(8, 12, 22, 0.96); border: 1.5px solid #ffd54f; border-radius: 8px;
-      padding: 5px 9px; font-family: Consolas, monospace; font-size: 0.68rem; color: #e6e9f0;
-      white-space: nowrap; box-shadow: 0 0 14px rgba(255, 213, 79, 0.35);
+      background: #37455f; border: 1.5px solid #4a5878; border-radius: 10px;
+      padding: 8px 11px; box-shadow: 0 3px 8px rgba(0,0,0,0.4); text-align: center;
+    }
+    .node strong { font-size: 0.78rem; color: #fff; white-space: nowrap; }
+    .node.host { background: #2e7d32; border-color: #43a047; }
+    .node.routerB { background: #455a76; }
+
+    .routerA {
+      position: absolute; transform: translate(-50%, -50%); z-index: 3;
+      display: flex; align-items: stretch; gap: 0;
+      border: 2px solid #f0a83b; border-radius: 12px; overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .ra-proc {
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+      background: #b4610f; padding: 10px 14px; transition: background 0.3s, box-shadow 0.3s;
+    }
+    .ra-proc.lit { background: #f0a83b; box-shadow: inset 0 0 14px rgba(255,255,255,0.4); }
+    .ra-ico { font-size: 1.1rem; }
+    .ra-lab { font-size: 0.62rem; font-weight: 800; color: #fff; }
+    .ra-buf {
+      display: flex; align-items: center; gap: 5px; padding: 0 12px;
+      background: #10151f; border-left: 2px dashed #f0a83b; transition: box-shadow 0.3s;
+    }
+    .ra-buf.lit { box-shadow: inset 0 0 16px rgba(239,83,80,0.45); }
+    .slot { width: 15px; height: 22px; border-radius: 3px; background: #0b0f19; border: 1px solid #2d3750; transition: background 0.35s, border-color 0.35s; }
+    .slot.ahead { background: #37455f; border-color: #5a6b8c; }
+    .slot.mine { background: #d29922; border-color: #ffd54f; box-shadow: 0 0 8px rgba(255,213,79,0.6); }
+
+    .packet {
+      position: absolute; transform: translate(-50%, -50%); z-index: 4;
+      font-size: 1rem; text-align: center; line-height: 1;
+      filter: drop-shadow(0 0 6px rgba(255,213,79,0.7));
+    }
+    .packet.stream {
+      background: linear-gradient(90deg, #ffd54f, #ffb300); border-radius: 3px; height: 12px;
+      font-size: 0; box-shadow: 0 0 10px rgba(255,213,79,0.7);
+      transform: translate(0, -50%); transform-origin: left center;
     }
 
-    .timer { width: 292px; flex-shrink: 0; background: #10151f; border: 1px solid var(--border); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
-    .thead { font-weight: 700; font-size: 0.88rem; margin-bottom: 8px; color: #ffd54f; }
-    .seg {
-      display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px;
-      background: #1a2132; border: 1px solid #2d3750; margin-bottom: 3px;
+    .zlabel {
+      position: absolute; transform: translate(-50%, 0); z-index: 2;
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+      width: 92px; opacity: 0.5; transition: opacity 0.3s, transform 0.3s;
     }
-    .seg.flash { border-color: #ffd54f; box-shadow: 0 0 10px rgba(255, 213, 79, 0.3); }
+    .zlabel.on { opacity: 1; transform: translate(-50%, -3px); }
+    .zname { font-family: Consolas, monospace; font-size: 0.72rem; font-weight: 800; }
+    .ztxt { font-size: 0.58rem; color: #8b95b5; line-height: 1.25; margin-top: 1px; }
+
+    .timer { width: 296px; flex-shrink: 0; background: #10151f; border: 1px solid var(--border); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; }
+    .thead { font-weight: 700; font-size: 0.86rem; margin-bottom: 8px; color: #ffd54f; }
+    .seg { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 6px; background: #1a2132; border: 1px solid #2d3750; margin-bottom: 4px; transition: border-color 0.3s, box-shadow 0.3s; }
+    .seg.lit { border-color: #4a5878; }
+    .seg.flash { box-shadow: 0 0 10px rgba(255,255,255,0.12); }
     .seg i { flex-shrink: 0; width: 11px; height: 11px; border-radius: 3px; }
-    .seginfo { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-    .segname { font-size: 0.7rem; font-weight: 700; color: var(--text); font-family: Consolas, monospace; }
-    .segdetail { font-size: 0.6rem; color: #5c6a8e; }
-    .segms { font-size: 0.72rem; font-weight: 800; color: #ffd54f; font-family: Consolas, monospace; white-space: nowrap; }
+    .sinfo { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+    .sname { font-size: 0.72rem; font-weight: 800; color: var(--text); font-family: Consolas, monospace; }
+    .sform { font-size: 0.58rem; color: #5c6a8e; }
+    .sms { font-size: 0.74rem; font-weight: 800; color: #cfe3ff; font-family: Consolas, monospace; white-space: nowrap; }
     .tempty { color: #5c6a8e; font-size: 0.72rem; font-style: italic; padding: 8px; }
-    .stack { display: flex; height: 14px; border-radius: 6px; overflow: hidden; background: #0b0f19; border: 1px solid #2d3750; margin-top: auto; }
-    .chunk { height: 100%; transition: width 0.3s; }
-    .total { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 2px 0; }
+    .stack { display: flex; height: 16px; border-radius: 6px; overflow: hidden; background: #0b0f19; border: 1px solid #2d3750; margin-top: auto; }
+    .chunk { height: 100%; transition: width 0.4s; }
+    .total { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 2px 2px; }
     .total span { font-size: 0.7rem; color: #8b95b5; }
-    .total strong { font-size: 1.05rem; color: #7ee787; font-family: Consolas, monospace; }
-    .legend { display: flex; gap: 10px; flex-wrap: wrap; padding-top: 6px; }
-    .legend span { font-size: 0.62rem; color: #8b95b5; }
-    .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; }
+    .total strong { font-size: 1.1rem; color: #7ee787; font-family: Consolas, monospace; }
+    .tnote { font-size: 0.62rem; color: #8b95b5; line-height: 1.5; }
 
     .status { display: flex; align-items: center; gap: 10px; margin-top: 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; min-height: 50px; font-size: 0.95rem; line-height: 1.45; }
     .status.done { border-color: #2ea04366; background: rgba(46, 160, 67, 0.1); }
@@ -292,7 +289,7 @@ const TOTAL_MS = SEGS.reduce((a, s) => a + s.ms, 0); // 78.2
     .dot.past { background: #1f6feb; border-color: #1f6feb; }
     .dot.now { background: #ffd54f; border-color: #ffd54f; }
 
-    @media (max-width: 720px) {
+    @media (max-width: 760px) {
       .board { flex-direction: column; }
       .timer { width: 100%; }
     }
@@ -300,79 +297,122 @@ const TOTAL_MS = SEGS.reduce((a, s) => a + s.ms, 0); // 78.2
 })
 export class DelaysDetail extends SteppedAnim implements OnDestroy {
   readonly steps = STEPS;
-  readonly host = HOST;
-  readonly r1 = R1;
-  readonly r2 = R2;
-  readonly srv = SRV;
-  readonly totalMs = TOTAL_MS;
+  readonly hostX = HOST_X;
+  readonly raX = RA_X;
+  readonly rbX = RB_X;
+  readonly hiway = HIWAY_Y;
+  readonly linkStart = LINK_START;
+
+  // punteros: zona (donde ocurre) → etiqueta (abajo)
+  readonly pointers = [
+    { id: 'proc' as DelayId, zx: 33, zy: HIWAY_Y + 6, lx: 24, short: 'procesamiento' },
+    { id: 'queue' as DelayId, zx: 45, zy: HIWAY_Y + 6, lx: 45, short: 'cola / encolamiento' },
+    { id: 'trans' as DelayId, zx: LINK_START + 3, zy: HIWAY_Y + 3, lx: 64, short: 'transmisión (L/R)' },
+    { id: 'prop' as DelayId, zx: 72, zy: HIWAY_Y + 3, lx: 84, short: 'propagación (d/s)' },
+  ];
 
   protected stepCount(): number {
     return STEPS.length;
   }
-  protected override stepTravel(i: number): number {
-    return STEPS[i].static ? 500 : 1400;
+  protected override stepTravel(): number {
+    return 900;
   }
-  protected override stepDwell(i: number): number {
-    return 3200;
+  protected override stepDwell(): number {
+    return 3400;
   }
 
-  readonly card = computed(() => {
+  seg(id: DelayId): Seg {
+    return SEGS[id];
+  }
+  pct(v: number): number {
+    // el SVG usa viewBox 0..62 en alto; los divs top:% usan 0..100 → convertir
+    return (v / 62) * 100;
+  }
+  fmt(v: number): string {
+    return (Math.round(v * 100) / 100).toString().replace('.', ',');
+  }
+
+  active(): DelayId | null {
     const i = this.index();
     if (i < 0 || this.finished()) return null;
-    const s = STEPS[i];
-    const p = this.ease(this.progress());
-    return {
-      text: s.text,
-      x: s.from.x + (s.to.x - s.from.x) * p,
-      y: s.from.y + (s.to.y - s.from.y) * p,
-    };
-  });
-
-  readonly showQueue = computed(() => {
-    const i = this.index();
-    return i >= 0 && !this.finished() && !!STEPS[i].showQueue;
-  });
-
-  readonly visibleSegs = computed(() => {
-    const i = this.index();
-    const p = this.progress();
-    const fin = this.finished();
-    const out: { name: string; detail: string; ms: number; color: string; flash: boolean }[] = [];
-    for (let si = 0; si < STEPS.length; si++) {
-      const seg = STEPS[si].seg;
-      if (seg === undefined) continue;
-      const reached = fin || si < i || (si === i && p >= 1);
-      if (!reached) continue;
-      const s = SEGS[seg];
-      out.push({
-        name: s.name,
-        detail: s.detail,
-        ms: s.ms,
-        color: COLORS[s.type],
-        flash: !fin && si === i && p >= 1,
-      });
-    }
-    return out;
-  });
-
-  readonly runningTotal = computed(() => {
-    const sum = this.visibleSegs().reduce((a, s) => a + s.ms, 0);
-    return Math.round(sum * 10) / 10;
-  });
-
-  active(p: Pos): boolean {
-    const i = this.index();
-    if (i < 0 || this.finished()) return false;
-    const s = STEPS[i];
-    return (s.from.x === p.x && s.from.y === p.y) || (s.to.x === p.x && s.to.y === p.y);
+    return STEPS[i].active;
   }
+
+  readonly rows = computed(() => {
+    const i = this.index();
+    if (i < 0) return [] as (Seg & { flash: boolean })[];
+    const n = this.finished() ? 4 : this.progress() >= 1 ? STEPS[i].revealUpTo : (i > 0 ? STEPS[i - 1].revealUpTo : 0);
+    const justId = this.active();
+    return ORDER.slice(0, n).map((id) => ({ ...SEGS[id], flash: id === justId && this.progress() >= 1 }));
+  });
+
+  readonly runningTotal = computed(() => this.rows().reduce((a, s) => a + s.ms, 0));
+
+  private readonly TOTAL = ORDER.reduce((a, id) => a + SEGS[id].ms, 0);
+  pctOfTotal(ms: number): number {
+    return (ms / this.TOTAL) * 100;
+  }
+
+  /** los 2 slots de adelante: llenos hasta que la cola drena */
+  aheadFull(slot: number): boolean {
+    if (slot >= 2) return false;
+    const act = this.active();
+    if (act === 'proc' || act === null) return true;
+    if (act === 'queue') {
+      // drenan progresivamente durante el paso de cola
+      const p = this.progress();
+      if (slot === 0) return p < 0.4;
+      if (slot === 1) return p < 0.75;
+    }
+    return false; // ya salieron
+  }
+
+  /** en qué slot está "nuestro" paquete */
+  mineSlot(): number {
+    const act = this.active();
+    if (act === 'queue') {
+      const p = this.progress();
+      return p < 0.4 ? 2 : p < 0.75 ? 1 : 0;
+    }
+    return -1;
+  }
+
+  readonly packet = computed(() => {
+    const i = this.index();
+    if (i < 0 || this.finished()) {
+      // en reposo / fin: en el host o llegando a B
+      if (this.finished()) return { x: this.rbX, w: 0, stream: false };
+      return { x: this.hostX + 4, w: 0, stream: false };
+    }
+    const st = STEPS[i];
+    const p = this.progress();
+    if (st.active === null) {
+      // viaja del host al router
+      return { x: this.hostX + 4 + (33 - this.hostX - 4) * this.ease(p), w: 0, stream: false };
+    }
+    if (st.active === 'proc') return { x: 33, w: 0, stream: false };
+    if (st.active === 'queue') {
+      // ocupa el slot de "mine" — lo dibuja el buffer, ocultamos el emoji suelto
+      return null;
+    }
+    if (st.streaming) {
+      // se empuja al enlace: barra que crece HACIA LA DERECHA desde la salida del router
+      const w = 6 + this.ease(p) * 34;
+      return { x: this.linkStart, w, stream: true };
+    }
+    if (st.onLink) {
+      // viaja por el enlace hacia B
+      return { x: this.linkStart + 3 + (this.rbX - 5 - this.linkStart - 3) * this.ease(p), w: 0, stream: false };
+    }
+    return { x: this.linkStart, w: 0, stream: false };
+  });
 
   readonly statusMsg = computed(() => {
     if (this.finished()) {
-      return '<strong>Total: 78,2 ms</strong> — y mirá la barra: la mayor tajada fue la <strong>cola</strong> (roja, 24 ms), el único retardo que NO podés calcular de antemano. <span class="formula">d_nodal = d_proc + d_queue + d_trans + d_prop</span>. La trampa de siempre: <strong>d_trans</strong> = ancho de banda y tamaño · <strong>d_prop</strong> = distancia. No se mezclan.';
+      return '<strong>d_nodal = ' + this.fmt(this.TOTAL) + ' ms</strong> — mirá la barra: la <b style="color:#ef5350">cola</b> se comió más de la mitad, y es la única que no podés calcular de antemano. La distinción de examen: <strong>d_trans</strong> (ancho de banda + tamaño) vs <strong>d_prop</strong> (distancia). No se mezclan.';
     }
     const i = this.index();
-    if (i < 0) return 'Presioná ▶ Play. El cronómetro de la derecha va desglosando cada retardo con su fórmula — al final tenés la "factura" completa del viaje.';
+    if (i < 0) return 'Presioná ▶ Play: seguí el paquete atravesando el router A mientras el cronómetro suma cada retardo con su fórmula.';
     return STEPS[i].msg;
   });
 

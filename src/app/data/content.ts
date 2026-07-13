@@ -30,7 +30,8 @@ export interface Topic {
     | 'http2-detail'
     | 'wpa-detail'
     | 'ipsec-detail'
-    | 'playout-detail'; // componentes a medida
+    | 'playout-detail'
+    | 'tcp-sim'; // componentes a medida
 }
 
 export interface Section {
@@ -286,6 +287,7 @@ export const SECTIONS: Section[] = [
       },
       {
         title: 'RTT, timeout y retransmisión',
+        widget: 'tcp-sim',
         html: `
 <p>Cálculo típico de examen (EWMA):</p>
 <ul>

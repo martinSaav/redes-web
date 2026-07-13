@@ -31,6 +31,10 @@ import { WpaDetail } from '../components/detail/wpa-detail';
 import { IpsecDetail } from '../components/detail/ipsec-detail';
 import { PlayoutDetail } from '../components/detail/playout-detail';
 import { TcpSim } from '../components/detail/tcp-sim';
+import { CrcDetail } from '../components/detail/crc-detail';
+import { SwitchingDetail } from '../components/detail/switching-detail';
+import { FlowctlDetail } from '../components/detail/flowctl-detail';
+import { MacDetail } from '../components/detail/mac-detail';
 
 @Component({
   selector: 'app-section',
@@ -67,6 +71,10 @@ import { TcpSim } from '../components/detail/tcp-sim';
     IpsecDetail,
     PlayoutDetail,
     TcpSim,
+    CrcDetail,
+    SwitchingDetail,
+    FlowctlDetail,
+    MacDetail,
   ],
   template: `
     @if (section(); as sec) {
@@ -118,6 +126,10 @@ import { TcpSim } from '../components/detail/tcp-sim';
               @case ('ipsec-detail') { <app-ipsec-detail /> }
               @case ('playout-detail') { <app-playout-detail /> }
               @case ('tcp-sim') { <app-tcp-sim /> }
+              @case ('crc-detail') { <app-crc-detail /> }
+              @case ('switching-detail') { <app-switching-detail /> }
+              @case ('flowctl-detail') { <app-flowctl-detail /> }
+              @case ('mac-detail') { <app-mac-detail /> }
             }
           </article>
         }

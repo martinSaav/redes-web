@@ -31,7 +31,11 @@ export interface Topic {
     | 'wpa-detail'
     | 'ipsec-detail'
     | 'playout-detail'
-    | 'tcp-sim'; // componentes a medida
+    | 'tcp-sim'
+    | 'crc-detail'
+    | 'switching-detail'
+    | 'flowctl-detail'
+    | 'mac-detail'; // componentes a medida
 }
 
 export interface Section {
@@ -87,6 +91,7 @@ export const SECTIONS: Section[] = [
       },
       {
         title: 'Conmutación: paquetes vs circuitos',
+        widget: 'switching-detail',
         html: `
 <p><strong>Circuitos</strong> (telefonía clásica): se <strong>reserva</strong> un camino y recursos de punta a punta (FDM por frecuencia o TDM por slots de tiempo). Garantizado… pero <strong>desperdiciado</strong> cuando no se usa.</p>
 <p><strong>Paquetes</strong> (Internet): los datos se parten en paquetes independientes. Cada router hace <strong>store-and-forward</strong> (recibe el paquete completo antes de reenviar). Recursos compartidos on-demand con <strong>multiplexación estadística</strong>: eficiente para tráfico a ráfagas, a cambio de <strong>congestión, colas y pérdidas</strong> posibles.</p>
@@ -300,6 +305,7 @@ export const SECTIONS: Section[] = [
       },
       {
         title: 'Control de flujo (rwnd)',
+        widget: 'flowctl-detail',
         html: `
 <p>Impide desbordar <strong>el buffer del receptor</strong> (≠ congestión, que mira la RED). El receptor anuncia <span class="formula">rwnd = RcvBuffer − (LastByteRcvd − LastByteRead)</span> en cada segmento; el emisor mantiene bytes en vuelo ≤ rwnd.</p>
 <span class="tip">Caso borde: si rwnd = 0, el emisor manda <strong>sondas de 1 byte</strong>; si no, cuando el receptor libere espacio no tendría cómo avisar (no manda ACKs sin recibir nada) y quedarían bloqueados para siempre.</span>`,
@@ -508,6 +514,7 @@ export const SECTIONS: Section[] = [
       },
       {
         title: 'Detección y corrección de errores',
+        widget: 'crc-detail',
         html: `
 <ul>
 <li><strong>Paridad</strong>: 1 bit → detecta cantidad impar de errores. La <strong>bidimensional</strong> (filas × columnas) detecta Y CORRIGE un error simple (la fila y columna rotas se cruzan en el culpable) — germen de <strong>FEC</strong>.</li>
@@ -518,7 +525,7 @@ export const SECTIONS: Section[] = [
       },
       {
         title: 'Acceso múltiple: 3 familias',
-        widget: 'csmacd-detail',
+        widget: 'mac-detail',
         html: `
 <p>En un canal <strong>broadcast/compartido</strong>, dos transmisiones simultáneas = <strong>colisión</strong>. El protocolo de acceso se coordina por el propio canal. Ideal: con M activos, R/M para cada uno, descentralizado.</p>
 <ul>
@@ -527,6 +534,15 @@ export const SECTIONS: Section[] = [
 <li><strong>Por turnos</strong>: polling (maestro que invita — overhead y punto único de falla) / token passing (testigo que circula).</li>
 </ul>
 <p><strong>DOCSIS</strong> (cable) mezcla las tres: FDM bajada/subida + minislots asignados por el CMTS (reserva) + pedidos en ventanas de contención (aleatorio).</p>`,
+      },
+      {
+        title: 'CSMA/CD: colisión y backoff en Ethernet',
+        widget: 'csmacd-detail',
+        html: `
+<p><strong>CSMA/CD</strong> (Ethernet clásica de bus): <strong>escuchar antes de hablar</strong> (carrier sense) y <strong>escuchar MIENTRAS se habla</strong> (collision detection). Al detectar una colisión, <strong>abortar</strong> de inmediato (no desperdiciar el resto de la trama), mandar una señal de <strong>jam</strong> y reintentar.</p>
+<p>¿Por qué igual hay colisiones si escuchan antes? Por el <strong>retardo de propagación</strong>: B puede empezar a transmitir antes de que le llegue la señal de que A ya estaba. Cuanto mayor el d_prop, peor.</p>
+<p><strong>Backoff exponencial binario</strong>: tras la n-ésima colisión de esa trama, se elige K uniforme en <span class="formula">{0, 1, …, 2^min(n,10) − 1}</span> y se espera K·512 tiempos de bit. Más colisiones → esperas potencialmente más largas: el protocolo "siente" la carga. Tras 16 intentos, se abandona la trama.</p>
+<p>Eficiencia asintótica: <span class="formula">1 / (1 + 5·d_prop/d_trans)</span> — mejora con tramas grandes (d_trans grande) y redes cortas (d_prop chico). En wireless <strong>no se puede detectar</strong> mientras se transmite → WiFi usa CSMA/<strong>CA</strong> (avoidance).</p>`,
       },
       {
         title: 'MAC, ARP y el viaje fuera de la subred',

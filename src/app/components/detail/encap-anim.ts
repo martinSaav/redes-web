@@ -58,21 +58,13 @@ const STEPS: EncapStep[] = [
   },
   {
     fromX: XA, toX: XSW, layers: ['tcp', 'ip', 'eth'], ethText: ETH1, ipText: IP1,
-    msg: 'Los bits viajan por el medio físico hasta el <strong>switch</strong>.',
-  },
-  {
-    fromX: XSW, toX: XSW, layers: ['tcp', 'ip', 'eth'], ethText: ETH1, ipText: IP1,
     highlight: { device: 'sw', layers: ['Enlace'] },
-    msg: 'El <strong>switch procesa hasta la capa de enlace</strong>: mira la MAC destino en su tabla y reenvía. <strong>Ni se entera</strong> de que adentro hay un datagrama IP — para él es carga opaca, y <strong>no toca las MACs</strong>.',
+    msg: 'La trama viaja por el medio hasta el <strong>switch</strong>, que <strong>procesa solo hasta la capa de enlace</strong>: mira la MAC destino en su tabla y reenvía. <strong>Ni se entera</strong> de que adentro hay un datagrama IP — para él es carga opaca, y <strong>no toca las MACs</strong>.',
   },
   {
-    fromX: XSW, toX: XR, layers: ['tcp', 'ip', 'eth'], ethText: ETH1, ipText: IP1,
-    msg: 'Reenviada por el puerto correcto, la trama llega al <strong>router</strong> (el gateway).',
-  },
-  {
-    fromX: XR, toX: XR, layers: ['tcp', 'ip'], disappear: 'eth', ethText: ETH1, ipText: IP2,
+    fromX: XSW, toX: XR, layers: ['tcp', 'ip'], disappear: 'eth', ethText: ETH1, ipText: IP2,
     highlight: { device: 'r', layers: ['Red', 'Enlace'] },
-    msg: 'El router <strong>DESENCAPSULA la trama</strong> (la capa de red necesita el datagrama): lookup por <strong>LPM</strong> en su tabla, <strong>TTL 64 → 63</strong> y recalcula el checksum del header.',
+    msg: 'La trama llega al <strong>router</strong> (el gateway), que la <strong>DESENCAPSULA</strong> (la capa de red necesita el datagrama): lookup por <strong>LPM</strong> en su tabla, <strong>TTL 64 → 63</strong> y recalcula el checksum del header.',
   },
   {
     fromX: XR, toX: XR, layers: ['tcp', 'ip', 'eth'], appear: 'eth', ethText: ETH2, ipText: IP2,
@@ -81,12 +73,8 @@ const STEPS: EncapStep[] = [
   },
   {
     fromX: XR, toX: XB, layers: ['tcp', 'ip', 'eth'], ethText: ETH2, ipText: IP2,
-    msg: 'Última pierna del viaje: hacia el <strong>Host B</strong>.',
-  },
-  {
-    fromX: XB, toX: XB, layers: ['tcp', 'ip', 'eth'], ethText: ETH2, ipText: IP2,
     highlight: { device: 'b', layers: ['Enlace'] },
-    msg: '<strong>Enlace</strong> de B: recibe la <strong>TRAMA</strong> y verifica el <strong>CRC ✔</strong> (si estuviera mal, la descarta en silencio). Como la MAC destino es la suya, saca el header y sube el datagrama.',
+    msg: 'La trama llega al <strong>Host B</strong>. Su <strong>capa de enlace</strong> verifica el <strong>CRC ✔</strong> (si estuviera mal, la descarta en silencio). Como la MAC destino es la suya, saca el header y sube el datagrama.',
   },
   {
     fromX: XB, toX: XB, layers: ['tcp', 'ip'], ipText: IP2,
@@ -327,7 +315,7 @@ export class EncapAnim extends SteppedAnim implements OnDestroy {
     return s.fromX === s.toX ? 500 : 1600;
   }
   protected override stepDwell(i: number): number {
-    return STEPS[i].fromX === STEPS[i].toX ? 3400 : 1700;
+    return STEPS[i].highlight ? 3400 : 1700;
   }
 
   readonly pktX = computed(() => {
@@ -361,16 +349,16 @@ export class EncapAnim extends SteppedAnim implements OnDestroy {
   /** estado de las cabeceras (direcciones) según el tramo del viaje */
   readonly hdr = computed(() => {
     const i = this.index();
-    const seg2 = i >= 8; // después de la re-encapsulación en el router
+    const seg2 = i >= 6; // después de la re-encapsulación en el router
     return {
       macSrc: seg2 ? MAC_RTR_WAN : MAC_A,
       macDst: seg2 ? MAC_B : MAC_RTR_LAN,
       ipSrc: IP_SRC,
       ipDst: IP_DST,
-      ttl: i >= 7 ? 63 : 64,
+      ttl: i >= 5 ? 63 : 64,
       portSrc: PORT_SRC,
       portDst: PORT_DST,
-      macChanged: i === 8,
+      macChanged: i === 6,
     };
   });
 

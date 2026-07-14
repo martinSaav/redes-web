@@ -265,15 +265,15 @@ export class CwndChart implements OnDestroy {
     return i > 0 ? this.data()[i - 1].cwnd : '·';
   }
 
-  /** clasifica el salto que TERMINA en el punto i por su naturaleza numérica */
+  /** clasifica el salto que TERMINA en el punto i según la máquina de estados de TCP.
+     Clave: mientras cwnd < ssthresh es SLOW START, aunque 1→2 parezca "+1" (1×2 = 1+1). */
   private segKind(i: number): 'ss' | 'ca' | 'drop' {
     const d = this.data();
     if (i <= 0) return 'ss';
     const from = d[i - 1].cwnd;
     const to = d[i].cwnd;
     if (to < from) return 'drop';
-    if (to === from + 1) return 'ca';
-    return 'ss'; // salto mayor que +1 = duplicación
+    return d[i - 1].cwnd < d[i - 1].ssthresh ? 'ss' : 'ca';
   }
   private kindColor(k: 'ss' | 'ca' | 'drop'): string {
     return k === 'ss' ? '#4ade80' : k === 'ca' ? '#58a6ff' : '#ef5350';
@@ -297,12 +297,13 @@ export class CwndChart implements OnDestroy {
     return this.segKind(i);
   }
   growthOp(): string {
-    switch (this.growthKind()) {
-      case 'ss': return '×2';
-      case 'ca': return '+1';
-      case 'drop': return '↓';
-      default: return '→';
-    }
+    if (this.growthKind() === 'drop') return '↓';
+    const i = this.curIdx();
+    const from = i > 0 ? this.data()[i - 1].cwnd : 0;
+    const to = this.curPoint()?.cwnd ?? 0;
+    if (to === from * 2) return '×2';
+    if (to === from + 1) return '+1';
+    return '↗'; // slow start topeado al llegar a ssthresh
   }
   growthHead(): string {
     switch (this.growthKind()) {

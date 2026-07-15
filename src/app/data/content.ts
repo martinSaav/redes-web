@@ -35,7 +35,8 @@ export interface Topic {
     | 'crc-detail'
     | 'switching-detail'
     | 'flowctl-detail'
-    | 'mac-detail'; // componentes a medida
+    | 'mac-detail'
+    | 'cast-detail'; // componentes a medida
 }
 
 export interface Section {
@@ -404,6 +405,7 @@ export const SECTIONS: Section[] = [
       },
       {
         title: 'IPv6 y la transición',
+        widget: 'cast-detail',
         html: `
 <p><strong>128 bits</strong> (≈3,4×10³⁸: "una IP por grano de arena"). Tipos: unicast, multicast y <strong>anycast</strong> — <strong>no hay broadcast</strong>. Header <strong>fijo de 40 bytes</strong>, más simple: sin fragmentación en routers, <strong>sin checksum</strong> (redundante y caro de recalcular por el TTL), sin options (van como extension headers). Agrega <strong>flow label</strong>; TTL se renombra <strong>hop limit</strong>.</p>
 <p><strong>Transición</strong> (no hay "flag day"): <strong>tunneling</strong> — el datagrama IPv6 viaja como payload de uno IPv4 entre routers <strong>dual-stack</strong>.</p>

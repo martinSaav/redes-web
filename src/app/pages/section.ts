@@ -35,6 +35,7 @@ import { CrcDetail } from '../components/detail/crc-detail';
 import { SwitchingDetail } from '../components/detail/switching-detail';
 import { FlowctlDetail } from '../components/detail/flowctl-detail';
 import { MacDetail } from '../components/detail/mac-detail';
+import { CastDetail } from '../components/detail/cast-detail';
 
 @Component({
   selector: 'app-section',
@@ -75,6 +76,7 @@ import { MacDetail } from '../components/detail/mac-detail';
     SwitchingDetail,
     FlowctlDetail,
     MacDetail,
+    CastDetail,
   ],
   template: `
     @if (section(); as sec) {
@@ -130,6 +132,7 @@ import { MacDetail } from '../components/detail/mac-detail';
               @case ('switching-detail') { <app-switching-detail /> }
               @case ('flowctl-detail') { <app-flowctl-detail /> }
               @case ('mac-detail') { <app-mac-detail /> }
+              @case ('cast-detail') { <app-cast-detail /> }
             }
           </article>
         }

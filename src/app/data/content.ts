@@ -38,6 +38,12 @@ export interface Topic {
     | 'mac-detail'
     | 'cast-detail'
     | 'dvconv-detail'
+    | 'mobility-detail'
+    | 'medium-detail'
+    | 'cellular-detail'
+    | 'assoc-detail'
+    | 'csmaca-detail'
+    | 'frame80211-detail'
     | 'bgppropag-detail'
     | 'ospf-detail'
     | 'rip-detail'; // componentes a medida
@@ -645,41 +651,109 @@ export const SECTIONS: Section[] = [
     icon: '📶',
     color: '#ec4899',
     layerTag: 'Bloque 6 · Cap. 7',
-    tagline: 'WiFi, CSMA/CA, terminal oculto, movilidad y celulares.',
+    tagline: '802.11 a fondo: asociación, CSMA/CA, tramas, movilidad y celulares.',
     topics: [
       {
         title: 'El medio inalámbrico es hostil',
+        widget: 'medium-detail',
         html: `
+<p>El cable es un medio dócil; el aire, no. Los enemigos:</p>
 <ul>
-<li><strong>Atenuación</strong> con la distancia y los obstáculos; <strong>fading</strong>.</li>
-<li><strong>Interferencia</strong> de otras fuentes en la banda (otros WiFi, microondas).</li>
-<li><strong>Multipath</strong>: la señal rebota y llega desfasada por varios caminos.</li>
-<li>La <strong>SNR</strong> determina la BER: trade-off tasa / potencia / errores.</li>
-<li><strong>Terminal oculto</strong>: A y C no se escuchan pero ambos alcanzan a B → colisionan EN B sin enterarse.</li>
+<li><strong>Atenuación</strong>: la señal se debilita con la <strong>distancia</strong> y los obstáculos (paredes). El <strong>fading</strong> es esa pérdida variable.</li>
+<li><strong>Interferencia</strong> de otras fuentes en la misma banda (otros WiFi, Bluetooth, microondas).</li>
+<li><strong>Multipath</strong>: la señal <strong>rebota</strong> y llega por varios caminos con <strong>distinto retardo</strong> → las copias se superponen desfasadas y se estorban.</li>
+<li>La <strong>SNR</strong> (relación señal/ruido) determina la <strong>BER</strong> (probabilidad de error por bit). Es un trade-off: <strong>tasa ↔ potencia/distancia ↔ errores</strong>.</li>
 </ul>
-<span class="warn">Consecuencia central: en wireless <strong>no se puede hacer CSMA/CD</strong>. Tu propia señal (fortísima) tapa la del otro, y por el terminal oculto podés ni enterarte de la colisión. Por eso WiFi EVITA (CA) en vez de DETECTAR (CD).</span>`,
+<p><strong>Modulación adaptativa</strong> (lo que muestra el diagrama): con SNR alta el emisor mete <strong>muchos bits por símbolo</strong> (64-QAM, tasa alta); al bajar la SNR cae a modulaciones más <strong>robustas y lentas</strong> (16-QAM, BPSK) para no dispararse la BER. Más lejos ⇒ menos velocidad.</p>
+<span class="warn">Consecuencia central: en wireless <strong>no se puede hacer CSMA/CD</strong>. Tu propia señal (fortísima) tapa la del otro, y por el <strong>terminal oculto</strong> podés ni enterarte de la colisión. Por eso WiFi EVITA (CA) + ACK en vez de DETECTAR (CD) — eso se ve en el diagrama de más abajo.</span>`,
       },
       {
-        title: 'WiFi 802.11: asociación y CSMA/CA',
+        title: '802.11: arquitectura, canales y asociación al AP',
+        widget: 'assoc-detail',
+        html: `
+<p><strong>Modo infraestructura</strong> (el normal): los hosts se asocian a un <strong>AP</strong>, y el conjunto <em>AP + hosts asociados</em> se llama <strong>BSS</strong> (Basic Service Set). El <strong>SSID</strong> es el nombre de la red; varios APs pueden compartir SSID para cubrir un edificio. En <strong>modo ad hoc</strong> no hay AP: los hosts se hablan directo entre sí.</p>
+<p><strong>Canales</strong>: la banda de <strong>2.4 GHz</strong> se divide en 11 canales que <strong>se solapan</strong> entre sí; por eso solo <strong>1, 6 y 11</strong> son mutuamente <strong>no solapados</strong> — es la terna que se usa para que APs vecinos no se interfieran. Si dos APs cercanos usan el mismo canal, sus BSS compiten por el mismo medio.</p>
+<p><strong>Asociarse tiene dos formas de descubrir APs</strong> (el toggle del diagrama):</p>
+<ul>
+<li><strong>Scanning pasivo</strong>: el host <strong>solo escucha</strong> los <strong>beacons</strong> que cada AP emite periódicamente (con su SSID y MAC). No transmite nada → ahorra batería, pero es <strong>más lento</strong> (hay que esperar el beacon en cada canal).</li>
+<li><strong>Scanning activo</strong>: el host <strong>transmite un Probe Request</strong> en broadcast y los APs contestan con <strong>Probe Response</strong>. Descubre <strong>mucho más rápido</strong>, a costa de batería y de ocupar el canal.</li>
+</ul>
+<p>Después elige el AP (típicamente el de <strong>mayor potencia de señal</strong> — el criterio lo define el SO, no el estándar), manda <strong>Association Request</strong> y recibe <strong>Association Response</strong>. Recién ahí, ya asociado en capa 2, corre <strong>DHCP</strong> para conseguir IP, máscara, gateway y DNS.</p>
+<span class="tip">Secuencia completa para el oral: <strong>scanning → (autenticación WPA2/WPA3) → asociación → DHCP</strong>. Asociarse es capa 2; tener IP es capa 3. Son dos cosas distintas y se preguntan por separado.</span>`,
+      },
+      {
+        title: 'Terminal oculto: la colisión invisible y RTS/CTS',
         widget: 'wifi-detail',
         html: `
-<p>Modo infraestructura: hosts asociados a un <strong>AP</strong> (el conjunto = <strong>BSS</strong>). El AP emite <strong>beacons</strong>; el host escanea (pasivo o activo con probe requests), elige por señal, se asocia y pide IP por DHCP.</p>
-<p><strong>CSMA/CA</strong>: escuchar; si está libre un intervalo <strong>DIFS</strong>, transmitir. Como no se detectan colisiones, cada trama se confirma con <strong>ACK explícito</strong> de capa 2. Ante canal ocupado o reintento: <strong>backoff aleatorio</strong>. <strong>RTS/CTS</strong> opcional contra el terminal oculto. La trama 802.11 lleva <strong>4 direcciones</strong> (incluye la MAC del AP para el relay hacia la LAN cableada).</p>`,
+<p>El problema que define a WiFi: <strong>A y C alcanzan al AP pero no se escuchan entre sí</strong>. Los dos sensan "canal libre" al mismo tiempo, transmiten, y <strong>colisionan en el AP</strong> sin que ninguno se entere.</p>
+<p>Esto, sumado a que <strong>tu propia señal tapa la del otro</strong> mientras transmitís, es la razón de fondo por la que <strong>no se puede hacer CSMA/CD</strong> en el aire: no hay forma confiable de <em>detectar</em> la colisión. Por eso 802.11:</p>
+<ul>
+<li><strong>Confirma cada trama con un ACK explícito de capa 2</strong>. La <strong>ausencia del ACK</strong> es la única señal de que algo falló.</li>
+<li>Ofrece <strong>RTS/CTS</strong> opcional: el emisor pide el canal con un <strong>RTS</strong> cortito, el AP responde <strong>CTS</strong>, y como <strong>el AP sí llega a todos</strong>, el terminal oculto <strong>escucha el CTS</strong> y se calla — activa su <strong>NAV</strong> (Network Allocation Vector: "canal reservado hasta tal momento").</li>
+</ul>
+<span class="tip">RTS/CTS agrega overhead, por eso es <strong>opcional</strong> y conviene solo para tramas grandes: si el RTS choca, se pierde poquito; si chocara una trama de datos entera, se pierde mucho.</span>`,
+      },
+      {
+        title: 'CSMA/CA en el tiempo: DIFS, backoff congelado y SIFS',
+        widget: 'csmaca-detail',
+        html: `
+<p>El protocolo completo, con los tiempos que se preguntan:</p>
+<ol>
+<li><strong>Carrier sense</strong>: si el canal está <strong>ocupado</strong>, esperar (no interrumpir).</li>
+<li>Cuando se libera, esperar un <strong>DIFS</strong> con el canal libre.</li>
+<li>Elegir un <strong>backoff aleatorio</strong> y decrementarlo de a un slot. <strong>Aunque el canal esté libre igual se espera</strong>: ese random es lo que <em>evita</em> que dos estaciones que venían esperando arranquen juntas.</li>
+<li>Al llegar a <strong>0</strong>, transmitir la trama <strong>entera</strong> (no puede abortar: no detecta colisiones).</li>
+<li>El receptor espera un <strong>SIFS</strong> y manda el <strong>ACK</strong>.</li>
+</ol>
+<span class="warn">👉 <strong>Los dos detalles que más se preguntan.</strong><br>
+<strong>(1) El backoff se CONGELA, no se reinicia.</strong> Si mientras contás alguien ocupa el canal, el contador <strong>se guarda</strong> en el valor que iba y retoma después del siguiente DIFS. En Ethernet (CSMA/CD) se sortea de nuevo. Congelarlo da <strong>equidad</strong>: el que ya esperó mucho no vuelve al fondo de la cola.<br>
+<strong>(2) SIFS &lt; DIFS, y eso es a propósito.</strong> Como el ACK espera solo un SIFS y cualquier otro tiene que esperar un DIFS (más largo), <strong>el ACK siempre sale primero</strong>: nadie se lo puede pisar. Es prioridad implementada con tiempos.</span>
+<p>Si el <strong>ACK no llega</strong>, se asume colisión: se <strong>duplica la ventana de contención</strong> (backoff exponencial, igual que Ethernet) y se reintenta.</p>`,
+      },
+      {
+        title: 'La trama 802.11: por qué tiene 3 direcciones (y no 2)',
+        widget: 'frame80211-detail',
+        html: `
+<p>Pregunta clásica de oral. Ethernet usa <strong>2 direcciones</strong> (destino y origen); 802.11 usa <strong>3</strong> en modo infraestructura. ¿Por qué la de más?</p>
+<p>Porque el <strong>AP es un puente</strong> entre dos medios distintos, y hay que responder <em>dos</em> preguntas a la vez: <strong>quién agarra la trama ahora por el aire</strong> y <strong>a quién va del otro lado del AP</strong>:</p>
+<ul>
+<li><strong>Address 1</strong> — MAC del <strong>receptor inmediato</strong> por radio (el AP, si sube; el host, si baja).</li>
+<li><strong>Address 2</strong> — MAC del <strong>transmisor</strong> por radio. Sirve para saber <strong>a quién mandarle el ACK</strong>.</li>
+<li><strong>Address 3</strong> — MAC de la <strong>otra punta</strong> (el router de la LAN, o el origen real). <strong>Es la que hace de pegamento</strong>: sin ella el AP no sabría a quién reenviar en el cable, y en la bajada el host creería que todo viene del AP.</li>
+<li><strong>Address 4</strong> — solo en <strong>ad hoc</strong> / entre APs de un sistema de distribución. En infraestructura no se usa.</li>
+</ul>
+<p>Otros campos: <strong>Duration</strong> (cuánto va a durar la transmisión — es lo que alimenta el <strong>NAV</strong> de los demás), <strong>Seq control</strong> (número de secuencia, para detectar duplicados cuando se retransmite por ACK perdido) y <strong>CRC</strong>.</p>
+<span class="tip">Dato para no confundirse: se suele decir "la trama 802.11 tiene 4 direcciones" porque el <em>formato</em> las prevé, pero en el <strong>modo infraestructura que usás todos los días van 3</strong>.</span>`,
       },
       {
         title: 'Gestión de la movilidad',
+        widget: 'mobility-detail',
         html: `
-<p>Conceptos: <strong>home network / home address</strong> (permanentes), <strong>foreign network</strong>, <strong>home/foreign agents</strong>, <strong>COA</strong> (care-of-address temporal en la red visitada).</p>
+<p>El problema: un dispositivo se <strong>va de su red</strong> pero quiere seguir recibiendo paquetes dirigidos a su dirección de siempre. Los actores:</p>
 <ul>
-<li><strong>Indirect routing</strong>: todo pasa por el home agent, que <strong>tunelea</strong> al COA. Simple, pero con el problema del <strong>triángulo</strong> (ineficiente).</li>
-<li><strong>Direct routing</strong>: el corresponsal averigua el COA y manda directo. Eficiente, más complejo.</li>
+<li><strong>Home network / home address</strong>: la red y la <strong>IP permanente</strong> del móvil — la que el mundo conoce y nunca cambia.</li>
+<li><strong>Foreign network</strong>: la red que está visitando ahora.</li>
+<li><strong>COA (care-of address)</strong>: la <strong>IP temporal</strong> que obtiene en la red visitada — dice "dónde está" en este momento.</li>
+<li><strong>Home Agent</strong>: entidad en la red hogar que <strong>intercepta</strong> lo que llega a la home address y lo reenvía. <strong>Foreign Agent</strong>: entidad en la red visitada que recibe y <strong>entrega</strong> al móvil.</li>
 </ul>
-<p><strong>Mobile IP</strong> estandariza agentes, registro del COA y tunneling.</p>`,
+<p>Dos estrategias para hacer llegar los datos (mirá las dos en el diagrama con el toggle):</p>
+<ul>
+<li><strong>Indirect routing</strong>: el corresponsal escribe a la home address; el <strong>Home Agent lo intercepta y lo tunelea</strong> (encapsula IP-en-IP) hasta la COA. Transparente para el corresponsal, pero la respuesta vuelve directa → ruta asimétrica: el <strong>problema del triángulo</strong> (ineficiente).</li>
+<li><strong>Direct routing</strong>: el corresponsal <strong>pregunta la COA una vez</strong> y manda directo a la red visitada. Óptimo, pero más complejo y hay que resolver el <strong>handoff</strong> si el móvil se muda a otra red foránea.</li>
+</ul>
+<span class="tip"><strong>Mobile IP</strong> estandariza los agentes, el <strong>registro de la COA</strong> y el <strong>tunneling</strong>. Analogía del libro: te mudás y dejás en el correo viejo una orden de <em>reenvío</em> a tu dirección nueva (indirect); o directamente le pasás tu dirección nueva a quien te escribe (direct).</span>`,
       },
       {
         title: 'Redes celulares 4G/5G',
+        widget: 'cellular-detail',
         html: `
-<p>Arquitectura de <strong>celdas</strong> con estaciones base. <strong>4G/LTE es all-IP</strong>: <strong>eNodeB</strong> (estación base), <strong>MME</strong> (control: autenticación con el HSS, gestión de túneles), <strong>S-GW / PDN-GW</strong> (data plane hacia Internet). <strong>Handover</strong>: la conexión pasa de una estación base a otra sin cortarse mientras te movés. 5G suma más capacidad y menor latencia.</p>`,
+<p>La red celular divide el territorio en <strong>celdas</strong>, cada una con su <strong>estación base</strong>. <strong>4G/LTE es all-IP</strong> y su núcleo (EPC) separa <strong>control</strong> de <strong>datos</strong> (misma idea que SDN):</p>
+<ul>
+<li><strong>eNodeB</strong>: la estación base LTE — el único tramo <em>inalámbrico</em>. De ahí en más es IP cableada.</li>
+<li><strong>MME</strong> (Mobility Management Entity): el <strong>plano de control</strong>. Autentica al usuario contra la <strong>HSS</strong> (base de datos de suscriptores) y arma los túneles (<em>bearers</em>). No toca los datos.</li>
+<li><strong>S-GW</strong> (Serving Gateway): <strong>ancla</strong> del plano de datos — sobrevive a los handovers. <strong>PDN-GW</strong>: el borde hacia Internet (asigna IP, hace de gateway).</li>
+</ul>
+<p><strong>Handover</strong> (segunda vista del diagrama): mientras te movés, la conexión <strong>pasa de una estación base a otra sin cortarse</strong>. La clave: se <strong>prepara la celda destino antes</strong> de soltar la origen, y el S-GW <strong>reengancha</strong> el camino de datos. <strong>5G</strong> profundiza la separación control/datos (núcleo por microservicios, <em>network slicing</em>) para más capacidad y menor latencia.</p>`,
       },
     ],
   },

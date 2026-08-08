@@ -132,6 +132,7 @@ const STEPS: PStep[] = [
             @if (routeRows().length === 0) {
               <div class="empty">(nadie aprendió el prefijo todavía)</div>
             }
+            <div class="vhint"><b>vía</b> = AS vecino (próximo salto) por el que se llega — el 1er ASN del AS-PATH. Mismo sentido que en el otro diagrama de BGP.</div>
           </div>
           <div class="dec" [class.on]="decideAt()">
             <div class="dhead">🧭 Selección de ruta (orden)</div>
@@ -200,6 +201,7 @@ const STEPS: PStep[] = [
     .trow.win { border-color: #ffd54f; box-shadow: 0 0 10px rgba(255,213,79,0.3); background: #2b2a1a; }
     .ra { color: #cfe3ff; font-weight: 700; } .rp { color: #80d8ff; } .rv { color: #7ee787; text-align: center; }
     .empty { color: #5c6a8e; font-style: italic; font-size: 0.72rem; padding: 6px; }
+    .vhint { margin-top: 6px; padding-top: 7px; border-top: 1px solid #232b3e; font-size: 0.62rem; color: var(--text-dim); line-height: 1.4; } .vhint b { color: #7ee787; font-family: Consolas, monospace; }
 
     .dec { background: #10151f; border: 1px solid var(--border); border-radius: 10px; padding: 10px; transition: border-color 0.3s; }
     .dec.on { border-color: #ffd54f88; }

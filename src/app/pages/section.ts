@@ -37,6 +37,12 @@ import { FlowctlDetail } from '../components/detail/flowctl-detail';
 import { MacDetail } from '../components/detail/mac-detail';
 import { CastDetail } from '../components/detail/cast-detail';
 import { DvconvDetail } from '../components/detail/dvconv-detail';
+import { MobilityDetail } from '../components/detail/mobility-detail';
+import { MediumDetail } from '../components/detail/medium-detail';
+import { CellularDetail } from '../components/detail/cellular-detail';
+import { AssocDetail } from '../components/detail/assoc-detail';
+import { CsmacaDetail } from '../components/detail/csmaca-detail';
+import { Frame80211Detail } from '../components/detail/frame80211-detail';
 import { BgppropagDetail } from '../components/detail/bgppropag-detail';
 import { OspfDetail } from '../components/detail/ospf-detail';
 import { RipDetail } from '../components/detail/rip-detail';
@@ -82,6 +88,12 @@ import { RipDetail } from '../components/detail/rip-detail';
     MacDetail,
     CastDetail,
     DvconvDetail,
+    MobilityDetail,
+    MediumDetail,
+    CellularDetail,
+    AssocDetail,
+    CsmacaDetail,
+    Frame80211Detail,
     BgppropagDetail,
     OspfDetail,
     RipDetail,
@@ -142,6 +154,12 @@ import { RipDetail } from '../components/detail/rip-detail';
               @case ('mac-detail') { <app-mac-detail /> }
               @case ('cast-detail') { <app-cast-detail /> }
               @case ('dvconv-detail') { <app-dvconv-detail /> }
+              @case ('mobility-detail') { <app-mobility-detail /> }
+              @case ('medium-detail') { <app-medium-detail /> }
+              @case ('cellular-detail') { <app-cellular-detail /> }
+              @case ('assoc-detail') { <app-assoc-detail /> }
+              @case ('csmaca-detail') { <app-csmaca-detail /> }
+              @case ('frame80211-detail') { <app-frame80211-detail /> }
               @case ('bgppropag-detail') { <app-bgppropag-detail /> }
               @case ('ospf-detail') { <app-ospf-detail /> }
               @case ('rip-detail') { <app-rip-detail /> }

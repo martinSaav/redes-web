@@ -195,7 +195,7 @@ const ROUTES: RouteRow[] = [
               <div class="empty">(todavía sin rutas aprendidas)</div>
             }
             <div class="cols">
-              <div><b>vía</b> = AS vecino de salida (AS2/AS3)</div>
+              <div><b>vía</b> = AS vecino (próximo salto): AS2/AS3</div>
               <div><b>AS-PATH</b> = ASes hasta el destino</div>
               <div><b>egress</b> = router propio por donde sale (1a/1b)</div>
               <div><b>IGP</b> = costo intra-AS a ese egress → decide el hot-potato</div>

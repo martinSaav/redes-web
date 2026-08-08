@@ -36,7 +36,11 @@ export interface Topic {
     | 'switching-detail'
     | 'flowctl-detail'
     | 'mac-detail'
-    | 'cast-detail'; // componentes a medida
+    | 'cast-detail'
+    | 'dvconv-detail'
+    | 'bgppropag-detail'
+    | 'ospf-detail'
+    | 'rip-detail'; // componentes a medida
 }
 
 export interface Section {
@@ -447,6 +451,33 @@ export const SECTIONS: Section[] = [
 <span class="tip">Comparación: LS manda más mensajes pero converge rápido y un router mentiroso solo daña su propia tabla; DV es liviano y local pero converge lento y los errores se PROPAGAN por los vectores.</span>`,
       },
       {
+        title: 'Distance-Vector: convergencia desde cero (Bellman-Ford)',
+        widget: 'dvconv-detail',
+        html: `
+<p>Este es <strong>el ejemplo clásico del Kurose (Fig. 5.6)</strong>. Hay una red de 3 routers — <strong>x</strong>, <strong>y</strong>, <strong>z</strong> — unidos por enlaces, cada uno con un <strong>costo</strong>: c(x,y)=2, c(y,z)=1, c(x,z)=7. La meta de cada router es descubrir el <strong>camino más barato</strong> hacia todos los demás; pero al arrancar <strong>solo conoce a sus vecinos directos</strong> y estima el resto con esa poca información.</p>
+
+<p><strong>¿Qué es un "vector de distancias"?</strong> Es la fila de costos que un router estima hacia cada destino. El de x se escribe <span class="formula">D<sub>x</sub> = [ D<sub>x</sub>(x), D<sub>x</sub>(y), D<sub>x</sub>(z) ]</span>, donde <strong>D<sub>x</sub>(z)</strong> se lee "el mejor costo que x cree hoy que le sale llegar hasta z". Cada router tiene su propio vector: es su fila en el gráfico.</p>
+
+<p class="reading"><strong>Cómo leer cada tabla del diagrama:</strong></p>
+<ul>
+<li>Hay <strong>una tabla por router</strong> (x verde, y azul, z violeta): representa lo que <em>ese</em> router cree saber en este momento.</li>
+<li>La fila <code>a →</code> son los <strong>destinos</strong> (x, y, z). La fila <code>costo</code> es el costo mínimo que hoy estima hacia cada destino.</li>
+<li>El <strong>0</strong> es el costo a sí mismo; un <strong>∞</strong> significa "todavía no sé cómo llegar".</li>
+<li>Una celda <strong style="color:#ffd54f">resaltada en amarillo</strong> es un valor que <strong>cambió (mejoró) en esa ronda</strong>. El sobre 🟡 que viaja por los enlaces es un router mandándole su vector a los vecinos.</li>
+</ul>
+
+<p><strong>Cómo avanza (Bellman-Ford):</strong> en cada ronda, cada router recibe los vectores de sus vecinos y recalcula cada destino con <span class="formula">D<sub>v</sub>(dest) = min<sub>w</sub> [ c(v,w) + D<sub>w</sub>(dest) ]</span> — es decir, "el mínimo, probando cada vecino <em>w</em>, de <em>(lo que me cuesta llegar a w)</em> + <em>(lo que w dice que le cuesta llegar al destino)</em>". Si el resultado mejora lo que tenía, lo actualiza y vuelve a avisarle a sus vecinos. Es <strong>iterativo, asincrónico y distribuido</strong>, y <strong>converge</strong> cuando una ronda entera no cambia ninguna celda. Es el motor de <strong>RIP</strong>.</p>
+
+<p>Fijate en el caso estrella: x cree que llegar a z le cuesta <strong>7</strong> (su enlace directo). Pero cuando y le cuenta que <em>él</em> llega a z por solo <strong>1</strong>, x descubre el atajo x→y→z = 2+1 = <strong>3</strong>, que es &lt; 7 y por eso pisa el 7. Esa es, en una celda, toda la idea del distance-vector.</p>`,
+      },
+      {
+        title: 'Distance-Vector: cuando cae un enlace (count-to-infinity)',
+        widget: 'dv-detail',
+        html: `
+<p><strong>"Las buenas noticias viajan rápido; las malas, lento"</strong>: si un enlace mejora, la novedad se propaga en pocos intercambios. Si un enlace <strong>se cae</strong>, puede arrancar el <strong>count-to-infinity</strong> — un loop donde los costos suben de a 1 "hasta el infinito".</p>
+<span class="warn">Mitigación: <strong>poisoned reverse</strong> ("si ruteo hacia x a través tuyo, te digo que mi distancia a x es ∞"). Resuelve loops de 2 nodos, NO los de 3 o más.</span>`,
+      },
+      {
         title: 'Sistemas Autónomos: intra vs inter',
         html: `
 <p>Internet no es un grafo plano de un millón de routers: no escalaría, y las organizaciones quieren <strong>autonomía</strong>. Se organiza en <strong>AS</strong> (routers bajo una misma administración, con ASN):</p>
@@ -456,11 +487,20 @@ export const SECTIONS: Section[] = [
 </ul>`,
       },
       {
-        title: 'OSPF y RIP',
-        widget: 'dv-detail',
+        title: 'OSPF (link-state): LSAs y jerarquía de áreas',
+        widget: 'ospf-detail',
         html: `
-<p><strong>OSPF</strong> (link-state): LSAs por flooding confiable + Dijkstra. Costos configurables (1 en todos = mínimo de saltos; o inversos a la banda). Extras industriales: <strong>autenticación</strong> de mensajes, <strong>ECMP</strong> (caminos de igual costo repartidos) y <strong>jerarquía en áreas</strong> con backbone (área 0) para contener el flooding.</p>
-<p><strong>RIP</strong> (distance-vector histórico): métrica = <strong>saltos, máximo 15</strong> (16 = ∞, lo que acota el count-to-infinity y lo limita a redes chicas). Vectores cada ~30 s. Hoy, pieza de museo didáctica.</p>`,
+<p><strong>OSPF</strong> es el IGP <strong>link-state</strong>: cada router difunde sus enlaces en un <strong>LSA</strong> por <strong>flooding confiable</strong> a todo el área, y corre <strong>Dijkstra</strong> sobre el mapa completo. Costos configurables (1 en todos = mínimo de saltos; o inversos a la banda).</p>
+<p><strong>La tabla de OSPF es la LSDB (Link-State Database)</strong> — el panel del diagrama. A diferencia de RIP (que se pasa <em>distancias ya calculadas</em>), OSPF se pasa <strong>el mapa crudo</strong>: cada <strong>LSA</strong> es una fila que dice "el router X está conectado a estos vecinos con estos costos". El flooding hace que <strong>los 6 routers terminen con la MISMA LSDB</strong>. Recién ahí cada uno corre <strong>Dijkstra</strong> localmente sobre ese mapa y arma <em>su</em> tabla de forwarding (destino → próximo salto). El pipeline completo es: <span class="formula">LSA → flooding → LSDB idéntica en todos → Dijkstra → tabla de forwarding</span>.</p>
+<span class="tip">Por eso un router "mentiroso" en OSPF solo arruina su propia tabla (cada uno calcula solo, con el mapa compartido), mientras que en RIP/DV un error se <strong>propaga</strong> por los vectores. El precio de OSPF: manda más mensajes y guarda más estado (toda la LSDB).</span>
+<p>Extras industriales: <strong>autenticación</strong> de LSAs (que un router pirata no inyecte rutas), <strong>ECMP</strong> (caminos de igual costo repartidos) y <strong>jerarquía en áreas</strong>: áreas que corren su propio link-state, interconectadas por un <strong>backbone (área 0)</strong> a través de <em>area border routers</em> — así el flooding y el cálculo quedan contenidos por área y OSPF escala a ASes enormes.</p>`,
+      },
+      {
+        title: 'RIP (distance-vector): la tabla de ruteo',
+        widget: 'rip-detail',
+        html: `
+<p><strong>RIP</strong> es el IGP <strong>distance-vector</strong> histórico. Métrica: <strong>saltos (hops)</strong>, con máximo <strong>15</strong> (16 = ∞ = inalcanzable) — lo que a la vez acota el daño del count-to-infinity y limita RIP a redes chicas. Los vecinos intercambian sus vectores cada <strong>~30 s</strong> (y ante cambios).</p>
+<p>Simple de configurar, convergencia lenta: hoy es más pieza de museo/didáctica que elección de diseño. Su tabla de ruteo tiene el formato <strong>(subred destino, próximo router, # saltos)</strong>.</p>`,
       },
       {
         title: 'BGP: el pegamento de Internet',
@@ -472,8 +512,23 @@ export const SECTIONS: Section[] = [
 <li><strong>NEXT-HOP</strong>: la IP de entrada al primer AS del camino — el ancla con el ruteo intra-AS.</li>
 </ul>
 <p><strong>Selección de ruta (el orden se pregunta)</strong>: 1) <strong>local preference</strong> (política del administrador — pisa todo), 2) <strong>AS-PATH más corto</strong>, 3) <strong>hot-potato</strong> (NEXT-HOP más cercano según MI IGP: "sacate el paquete de encima ya"), 4) desempate por identificadores.</p>
+<p class="reading"><strong>Cómo leer la tabla de rutas del diagrama</strong> — son las rutas candidatas que AS1 tiene hacia 138.16/16, una por fila:</p>
+<ul>
+<li><strong>vía</strong>: por cuál <em>AS vecino</em> se va la ruta (AS2 o AS3). Es el primer ASN del AS-PATH.</li>
+<li><strong>AS-PATH</strong>: la secuencia de ASes hasta el destino. Acá las dos rutas miden 2 ASes → <strong>empatan</strong>, y por eso la decisión baja al hot-potato.</li>
+<li><strong>egress</strong>: el <em>router de salida de MI propio AS</em> (1a o 1b) — el punto por donde el paquete abandona AS1 rumbo a ese vecino. "Egress" = punto de egreso/salida.</li>
+<li><strong>IGP</strong>: el <em>costo intradominio</em> (el que calcula mi propio <strong>IGP</strong>: OSPF/RIP) para llegar desde el host hasta ese router de egreso. Es exactamente lo que mira la papa caliente: <strong>gana el egress con IGP más bajo</strong> (1b, costo 4, contra 1a con 10).</li>
+</ul>
+<span class="tip"><strong>IGP</strong> = <em>Interior Gateway Protocol</em>, el protocolo de ruteo <em>dentro</em> del AS (OSPF, RIP). Como columna, "IGP" es abreviatura de "costo según el IGP". No confundir con BGP, que es el protocolo <em>entre</em> ASes (EGP).</span>
 <p><strong>Políticas comerciales</strong>: relaciones cliente-proveedor (se paga tránsito) o peers (gratis entre sí). Regla: un AS anuncia a proveedores/peers <strong>solo las rutas de sus clientes</strong> — nunca rutas de un proveedor hacia otro (sería tránsito gratis). Consecuencia: a veces el camino físico corto no se usa porque comercialmente no existe.</p>
 <p><strong>IP anycast</strong>: la misma IP anunciada desde muchos puntos; BGP te lleva al "más cercano". Así funcionan los root servers de DNS y las CDNs.</p>`,
+      },
+      {
+        title: 'BGP: propagación del prefijo y AS-PATH',
+        widget: 'bgppropag-detail',
+        html: `
+<p>Cómo un prefijo se propaga entre ASes: en cada frontera (eBGP), el AS que reanuncia <strong>prepende su propio ASN</strong> al <strong>AS-PATH</strong>. Ese path sirve para <strong>detectar loops</strong> (si un AS ve su ASN en el path, descarta la ruta) y como métrica de desempate (menos ASes ≈ mejor).</p>
+<p>Cuando a un AS le llegan varias rutas al mismo prefijo, decide en orden: <strong>local-preference</strong> (política) → <strong>AS-PATH más corto</strong> → <strong>hot-potato</strong> (NEXT-HOP más cercano por IGP) → menor router-id.</p>`,
       },
       {
         title: 'ICMP y traceroute',

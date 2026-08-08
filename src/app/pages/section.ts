@@ -36,6 +36,10 @@ import { SwitchingDetail } from '../components/detail/switching-detail';
 import { FlowctlDetail } from '../components/detail/flowctl-detail';
 import { MacDetail } from '../components/detail/mac-detail';
 import { CastDetail } from '../components/detail/cast-detail';
+import { DvconvDetail } from '../components/detail/dvconv-detail';
+import { BgppropagDetail } from '../components/detail/bgppropag-detail';
+import { OspfDetail } from '../components/detail/ospf-detail';
+import { RipDetail } from '../components/detail/rip-detail';
 
 @Component({
   selector: 'app-section',
@@ -77,6 +81,10 @@ import { CastDetail } from '../components/detail/cast-detail';
     FlowctlDetail,
     MacDetail,
     CastDetail,
+    DvconvDetail,
+    BgppropagDetail,
+    OspfDetail,
+    RipDetail,
   ],
   template: `
     @if (section(); as sec) {
@@ -133,6 +141,10 @@ import { CastDetail } from '../components/detail/cast-detail';
               @case ('flowctl-detail') { <app-flowctl-detail /> }
               @case ('mac-detail') { <app-mac-detail /> }
               @case ('cast-detail') { <app-cast-detail /> }
+              @case ('dvconv-detail') { <app-dvconv-detail /> }
+              @case ('bgppropag-detail') { <app-bgppropag-detail /> }
+              @case ('ospf-detail') { <app-ospf-detail /> }
+              @case ('rip-detail') { <app-rip-detail /> }
             }
           </article>
         }

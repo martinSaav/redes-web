@@ -194,6 +194,12 @@ const ROUTES: RouteRow[] = [
             @if (routeRows().length === 0) {
               <div class="empty">(todavía sin rutas aprendidas)</div>
             }
+            <div class="cols">
+              <div><b>vía</b> = AS vecino de salida (AS2/AS3)</div>
+              <div><b>AS-PATH</b> = ASes hasta el destino</div>
+              <div><b>egress</b> = router propio por donde sale (1a/1b)</div>
+              <div><b>IGP</b> = costo intra-AS a ese egress → decide el hot-potato</div>
+            </div>
           </div>
 
           <div class="rules">
@@ -301,6 +307,8 @@ const ROUTES: RouteRow[] = [
     .rv { color: #ce93d8; font-weight: 700; } .rp { color: #80d8ff; } .re { color: #cfe3ff; text-align: center; }
     .ri { color: #79c0ff; text-align: center; } .ri.lo { color: #7ee787; font-weight: 800; } .rk { color: #7ee787; font-weight: 900; }
     .empty { color: #5c6a8e; font-style: italic; font-size: 0.72rem; padding: 6px; }
+    .cols { margin-top: 8px; padding-top: 8px; border-top: 1px solid #232b3e; display: flex; flex-direction: column; gap: 3px; font-size: 0.63rem; color: var(--text-dim); line-height: 1.4; }
+    .cols b { color: #cfe3ff; font-family: Consolas, monospace; }
 
     .rules { background: #10151f; border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
     .rhead { font-weight: 700; font-size: 0.78rem; color: #7ee787; margin-bottom: 6px; }

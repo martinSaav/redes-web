@@ -50,6 +50,7 @@ export interface Topic {
     | 'authproto-detail'
     | 'firewall-detail'
     | 'secprops-detail'
+    | 'fabric-detail'
     | 'bgppropag-detail'
     | 'ospf-detail'
     | 'rip-detail'; // componentes a medida
@@ -382,13 +383,61 @@ export const SECTIONS: Section[] = [
 <p>El servicio de IP es <strong>best-effort</strong>: ni entrega, ni orden, ni demora, ni banda garantizadas. Suena pobre, pero es lo que la hizo simple, barata y universal ("el que quiera más, que lo construya arriba" — TCP).</p>`,
       },
       {
-        title: 'Adentro de un router',
+        title: 'Adentro de un router: los cuatro componentes',
         widget: 'router-detail',
         html: `
-<p>Cuatro componentes: <strong>puertos de entrada</strong> (terminan el enlace, lookup por <strong>LPM</strong> a line-speed con memorias <strong>TCAM</strong>), <strong>switching fabric</strong> (por memoria → por bus → por <strong>crossbar</strong> con transferencias en paralelo), <strong>puertos de salida</strong> (buffer + scheduling) y <strong>procesador de ruteo</strong>.</p>
-<p><strong>Dónde se pierde</strong>: en colas. En entrada, <strong>HOL blocking</strong> (el del frente, bloqueado, traba a los de atrás). En salida (lo común): buffer lleno → drop-tail, o descarte/marcado temprano con <strong>AQM</strong> (RED, CoDel — contra el bufferbloat).</p>
-<p><strong>¿Cuánto buffer?</strong> Regla clásica <span class="formula">B = RTT × C</span>; refinada <span class="formula">B = RTT × C / √N</span> (N flujos desincronizados). <strong>Bufferbloat</strong>: buffers gigantes = colas persistentes = latencia enorme. Más buffer no siempre es mejor.</p>
-<p><strong>Scheduling</strong> de salida: FIFO · <strong>prioridad</strong> (riesgo: inanición) · round robin · <strong>WFQ</strong> (garantiza a la clase i al menos w_i/Σw_j del enlace — la base del QoS).</p>`,
+<p>La arquitectura del libro (<strong>Fig. 4.4</strong>) tiene <strong>cuatro componentes</strong>, y una línea que los parte en dos mundos: <strong>puertos de entrada</strong>, <strong>switching fabric</strong> y <strong>puertos de salida</strong> viven en el <strong>data plane</strong> (hardware, nanosegundos, a <em>line speed</em>); el <strong>procesador de ruteo</strong> vive en el <strong>control plane</strong> (software, milisegundos o segundos).</p>
+
+<h4>1 · Puertos de entrada</h4>
+<p>Cada puerto de entrada hace <strong>tres funciones en cadena</strong>:</p>
+<ul>
+<li><strong>Terminación de línea</strong> (<em>line termination</em>) — la <strong>capa física</strong>: recupera los bits del medio (óptico, cobre, radio). Es el punto donde el enlace "termina" físicamente en el router.</li>
+<li><strong>Procesamiento de enlace</strong> (<em>link layer processing</em>) — la <strong>capa 2</strong>: verifica la trama (CRC), la <strong>desencapsula</strong> y extrae el datagrama IP que lleva adentro.</li>
+<li><strong>Lookup, forwarding y encolado</strong> — la <strong>capa 3</strong>: se busca la IP destino en la <strong>tabla de reenvío</strong> para decidir <strong>por qué puerto de salida</strong> sale, y se lo manda al fabric.</li>
+</ul>
+<p><strong>El detalle que más se pregunta: el lookup es DESCENTRALIZADO.</strong> Cada puerto de entrada tiene su <strong>propia copia local</strong> de la tabla de reenvío (una <em>shadow copy</em> que el procesador de ruteo le baja y le mantiene actualizada). ¿Por qué? Porque si cada paquete tuviera que consultar una tabla central en el procesador, <strong>ese procesador sería el cuello de botella</strong> de todo el router. Con la copia local, <strong>cada puerto decide solo y en paralelo</strong> con los demás, y se puede reenviar a <em>line speed</em> (a la velocidad de la línea, sin frenar el flujo de entrada).</p>
+<p>La búsqueda usa <strong>LPM</strong> (longest prefix match): si la IP matchea varios prefijos, gana <strong>el más específico</strong>. Para hacerlo en un ciclo de reloj se usan memorias <strong>TCAM</strong> (<em>ternary content-addressable memory</em>): en vez de buscar por dirección, se presenta la IP y la memoria <strong>devuelve el resultado en ~1 ciclo</strong>, comparando contra todas las entradas a la vez (y soportando "comodines" para los prefijos).</p>
+<p>Conceptualmente, lo que hace el puerto es un <strong>"match + action"</strong>: matchea campos del paquete y ejecuta una acción. Esa es la idea que después se generaliza en <strong>OpenFlow/SDN</strong> (último tema de la sección).</p>
+
+<h4>2 · Switching fabric (matriz de conmutación)</h4>
+<p>Es el <strong>corazón</strong> del router: el que efectivamente <strong>mueve</strong> el paquete del puerto de entrada al de salida. Tiene tres implementaciones históricas (memoria, bus y crossbar) — están en detalle en el diagrama del tema siguiente.</p>
+
+<h4>3 · Puertos de salida</h4>
+<p>Hacen el camino inverso, más una función nueva y crítica:</p>
+<ul>
+<li><strong>Buffer / gestión de cola</strong> — si los paquetes llegan del fabric <strong>más rápido</strong> de lo que el enlace puede transmitirlos, <strong>se encolan</strong>. Acá vive el <strong>retardo de cola</strong> y acá es donde <strong>se pierden</strong> paquetes.</li>
+<li><strong>Planificador de paquetes</strong> (<em>packet scheduler</em>) — decide <strong>a cuál de los encolados le toca salir</strong>. Es donde se implementa la <strong>calidad de servicio</strong>.</li>
+<li><strong>Procesamiento de enlace</strong> — <strong>encapsula</strong> el datagrama en una trama nueva, con las direcciones MAC del próximo salto.</li>
+<li><strong>Terminación de línea</strong> — pone los bits en el medio.</li>
+</ul>
+
+<h4>4 · Procesador de ruteo</h4>
+<p>Es la "computadora" del router y <strong>el único que está del lado del control plane</strong>. Sus tareas:</p>
+<ul>
+<li><strong>Ejecuta los protocolos de ruteo</strong> (OSPF, BGP, RIP): mantiene las tablas de ruteo y el estado de los enlaces vecinos.</li>
+<li><strong>Calcula la tabla de reenvío</strong> a partir de esa información, y se la <strong>baja a cada puerto de entrada</strong>.</li>
+<li><strong>Funciones de gestión</strong>: responder ICMP, SNMP, la consola de administración.</li>
+</ul>
+<span class="tip">Ojo con la distinción, que se pregunta: la <strong>tabla de RUTEO</strong> (grande, la arma el control plane con los protocolos) no es lo mismo que la <strong>tabla de REENVÍO</strong> (compacta, optimizada para consulta rápida, es la que realmente usan los puertos). En un router <strong>SDN</strong> este procesador desaparece del equipo: las tablas las calcula un <strong>controlador remoto</strong> y se las instala al router.</span>
+
+<h4>Dónde se encola y dónde se pierde</h4>
+<p><strong>Colas de entrada</strong>: aparecen si el <strong>fabric es más lento</strong> que la suma de los puertos de entrada. Su patología es el <strong>HOL blocking</strong> (<em>head-of-the-line</em>): el paquete <strong>del frente</strong> de la cola está esperando una salida ocupada, y <strong>traba a los de atrás</strong> aunque la salida de ellos esté libre. Es un bloqueo "por estar atrás del equivocado".</p>
+<p><strong>Colas de salida</strong> (el caso normal): el fabric entrega más rápido de lo que el enlace transmite. Si el buffer se llena → <strong>drop-tail</strong> (se descarta el que llega). Los <strong>AQM</strong> (RED, CoDel) descartan o <strong>marcan</strong> <em>antes</em> de llenarse — con <strong>ECN</strong> marcan en vez de tirar, avisándole a TCP que baje sin perder el paquete.</p>
+<p><strong>¿Cuánto buffer poner?</strong> Regla clásica <span class="formula">B = RTT × C</span> (para que el enlace no quede ocioso mientras TCP se recupera); refinada para N flujos desincronizados: <span class="formula">B = RTT × C / √N</span>. <strong>Más buffer NO es mejor</strong>: buffers gigantes producen <strong>bufferbloat</strong> — colas persistentemente llenas, latencia enorme, y TCP que tarda una eternidad en enterarse de la congestión.</p>
+<p><strong>Scheduling de salida</strong>: <strong>FIFO</strong> (el orden de llegada) · <strong>por prioridad</strong> (siempre sale primero la clase alta — riesgo: <strong>inanición</strong> de las bajas) · <strong>round robin</strong> (turnos cíclicos entre clases) · <strong>WFQ</strong> (<em>weighted fair queueing</em>: garantiza a la clase <em>i</em> al menos <span class="formula">w_i / Σw_j</span> del ancho de banda — es la base del <strong>QoS</strong>).</p>`,
+      },
+      {
+        title: 'El switching fabric: memoria, bus y crossbar',
+        widget: 'fabric-detail',
+        html: `
+<p>El fabric es <strong>el componente que mueve el paquete</strong> de la entrada a la salida, y su velocidad define la del router entero. Se mide con la <strong>tasa de conmutación</strong>: la velocidad a la que puede transferir paquetes. Tres generaciones:</p>
+<ul>
+<li><strong>Por memoria</strong> (1ª generación) — los routers más viejos eran literalmente <strong>computadoras con CPU</strong>. El paquete lo copia el <strong>procesador</strong> a la <strong>memoria del sistema</strong> y después lo copia de nuevo al puerto de salida. <strong>Cuello de botella</strong>: cada paquete <strong>cruza el bus del sistema DOS veces</strong>, así que la velocidad total está limitada por el <strong>ancho de banda de la memoria</strong>, y <strong>no se pueden hacer dos transferencias a la vez</strong>. (Muchos switches modernos siguen usando esto, pero con el lookup y la copia hechos por el procesador del <em>puerto</em>, no por el central.)</li>
+<li><strong>Por bus</strong> (2ª generación) — el puerto de entrada transfiere el paquete <strong>directamente</strong> al de salida por un <strong>bus compartido</strong>, <strong>sin intervención del procesador</strong>. Más rápido, pero como el bus es <strong>uno solo y compartido</strong>, <strong>solo puede pasar un paquete a la vez</strong>: la velocidad del router queda limitada por la <strong>velocidad del bus</strong>.</li>
+<li><strong>Por red de interconexión / crossbar</strong> (3ª generación) — una <strong>matriz de 2N buses</strong> (N horizontales para las entradas, N verticales para las salidas) con <strong>puntos de cruce</strong> que se abren y cierran. Permite <strong>varias transferencias EN PARALELO</strong> — es un fabric <strong>no bloqueante</strong>: un paquete nunca es bloqueado por otro <em>mientras vayan a puertos de salida distintos</em>.</li>
+</ul>
+<span class="warn">El matiz que se pregunta sobre el crossbar: <strong>"no bloqueante" NO significa que nunca haya conflictos.</strong> Si <strong>dos paquetes van a la MISMA salida</strong>, uno tiene que esperar igual — el fabric solo garantiza que no se estorben cuando los destinos son distintos. Cuando el conflicto ocurre y las colas se arman en la entrada, aparece el <strong>HOL blocking</strong>.</span>
+<p>Para escalar más, los routers de alta gama <strong>parten el paquete en celdas de longitud fija</strong> y las mandan por el fabric (conmutar celdas fijas es mucho más rápido), o directamente ponen <strong>varios fabrics en paralelo</strong>.</p>`,
       },
       {
         title: 'El datagrama IPv4 y la fragmentación',

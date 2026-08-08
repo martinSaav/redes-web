@@ -43,10 +43,22 @@ code {
 
 /* Contenido de los temas (innerHTML) */
 .topic-body p { margin: 0 0 12px; color: var(--text); }
-.topic-body ul { margin: 8px 0 14px; padding-left: 22px; }
+.topic-body ul,
+.topic-body ol { margin: 8px 0 14px; padding-left: 22px; }
 .topic-body li { margin-bottom: 7px; }
 .topic-body strong { color: #fff; }
 .topic-body em { color: var(--text-dim); }
+
+/* Subtítulos dentro de un tema (componentes, fases, etc.) */
+.topic-body h4 {
+  margin: 20px 0 9px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--c, var(--accent));
+}
+.topic-body h4:first-child { margin-top: 4px; }
 
 .topic-body .tip {
   display: block;

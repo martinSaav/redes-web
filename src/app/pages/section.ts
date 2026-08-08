@@ -43,6 +43,10 @@ import { CellularDetail } from '../components/detail/cellular-detail';
 import { AssocDetail } from '../components/detail/assoc-detail';
 import { CsmacaDetail } from '../components/detail/csmaca-detail';
 import { Frame80211Detail } from '../components/detail/frame80211-detail';
+import { CryptoDetail } from '../components/detail/crypto-detail';
+import { CbcDetail } from '../components/detail/cbc-detail';
+import { SignDetail } from '../components/detail/sign-detail';
+import { AuthprotoDetail } from '../components/detail/authproto-detail';
 import { BgppropagDetail } from '../components/detail/bgppropag-detail';
 import { OspfDetail } from '../components/detail/ospf-detail';
 import { RipDetail } from '../components/detail/rip-detail';
@@ -94,6 +98,10 @@ import { RipDetail } from '../components/detail/rip-detail';
     AssocDetail,
     CsmacaDetail,
     Frame80211Detail,
+    CryptoDetail,
+    CbcDetail,
+    SignDetail,
+    AuthprotoDetail,
     BgppropagDetail,
     OspfDetail,
     RipDetail,
@@ -160,6 +168,10 @@ import { RipDetail } from '../components/detail/rip-detail';
               @case ('assoc-detail') { <app-assoc-detail /> }
               @case ('csmaca-detail') { <app-csmaca-detail /> }
               @case ('frame80211-detail') { <app-frame80211-detail /> }
+              @case ('crypto-detail') { <app-crypto-detail /> }
+              @case ('cbc-detail') { <app-cbc-detail /> }
+              @case ('sign-detail') { <app-sign-detail /> }
+              @case ('authproto-detail') { <app-authproto-detail /> }
               @case ('bgppropag-detail') { <app-bgppropag-detail /> }
               @case ('ospf-detail') { <app-ospf-detail /> }
               @case ('rip-detail') { <app-rip-detail /> }

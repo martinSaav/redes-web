@@ -44,6 +44,10 @@ export interface Topic {
     | 'assoc-detail'
     | 'csmaca-detail'
     | 'frame80211-detail'
+    | 'crypto-detail'
+    | 'cbc-detail'
+    | 'sign-detail'
+    | 'authproto-detail'
     | 'bgppropag-detail'
     | 'ospf-detail'
     | 'rip-detail'; // componentes a medida
@@ -786,39 +790,50 @@ export const SECTIONS: Section[] = [
 <p><strong>Pasivas</strong> (observan, difíciles de detectar): <strong>sniffing</strong>. <strong>Activas</strong>: <strong>spoofing</strong> (IP origen falsa), <strong>MITM</strong> (se interpone y se hace pasar por cada parte — la amenaza que justifica los certificados), <strong>hijacking</strong> (secuestrar una sesión adivinando secuencias), <strong>replay</strong> (reenviar un mensaje válido grabado — defensa: nonces), <strong>DoS/DDoS</strong> (SYN flood → SYN cookies), <strong>DNS poisoning / pharming</strong>, malware.</p>`,
       },
       {
-        title: 'Criptografía simétrica: AES y el modo CBC',
+        title: 'Simétrica, asimétrica e híbrida: el panorama completo',
+        widget: 'crypto-detail',
         html: `
-<p><strong>Misma clave</strong> para cifrar y descifrar (AES). Rápida — ideal para volumen. Su problema difícil: <strong>distribuir la clave</strong>.</p>
-<p><strong>ECB</strong> (cada bloque por separado) tiene una falla grave: bloques iguales → cifrados iguales → se filtra estructura (la imagen del pingüino que "se ve" cifrada). <strong>CBC</strong>: <span class="formula">c_i = K(m_i ⊕ c_(i−1))</span> con un <strong>IV aleatorio</strong> en claro: el mismo texto da cifrados distintos por mensaje.</p>
-<span class="warn">NUNCA reusar un IV con la misma clave (es lo que rompió a WEP).</span>`,
+<p>Hay <strong>dos familias</strong> de criptografía, con virtudes opuestas — y la respuesta a "¿cuál se usa?" es <strong>las dos, combinadas</strong>.</p>
+<p><strong>1 · Simétrica</strong> (AES, 3DES): <strong>una misma clave</strong> cifra y descifra. Es <strong>rapidísima</strong>, ideal para el volumen de datos. Sus dos problemas: <strong>cómo distribuir la clave</strong> a alguien que nunca viste sin que la intercepten, y que <strong>no escala</strong> — para N usuarios que quieran hablar entre sí hacen falta <strong>N(N−1)/2</strong> claves distintas.</p>
+<p><strong>2 · Asimétrica</strong> (RSA, Diffie-Hellman, ECC): cada uno tiene un <strong>par de claves</strong> — la <strong>pública</strong> se difunde libremente, la <strong>privada</strong> nunca sale de su dueño. Lo cifrado con una <strong>solo</strong> se abre con la otra. Para <strong>confidencialidad</strong> se cifra con la <strong>pública del receptor</strong> (solo él puede abrirlo). Resuelve la distribución de claves y baja a <strong>2N</strong> claves… pero es <strong>~1000× más lenta</strong>: cifrar un video entero con RSA sería inviable.</p>
+<p><strong>3 · Híbrida</strong> ⭐ — lo que se usa de verdad: se aprovecha <strong>cada una para lo que es buena</strong>. La asimétrica <strong>una sola vez</strong>, para ponerse de acuerdo en una <strong>clave de sesión simétrica</strong>; y de ahí en más <strong>AES para todo el tráfico</strong>. Como la clave de sesión es corta, el costo de la asimétrica se paga una vez y no duele.</p>
+<span class="tip"><strong>Esto es exactamente TLS/HTTPS</strong> (y SSH, y las VPNs). Además, como la clave de sesión es <strong>distinta por conexión</strong>, romper una no compromete las demás. La autenticidad de la clave pública la garantiza el <strong>certificado</strong>: sin eso, todo el esquema cae por MITM.</span>
+<p><strong>RSA</strong> se apoya en que <strong>factorizar el producto de dos primos grandes es inviable</strong> (<span class="formula">c = m^e mod n · m = c^d mod n</span>). <strong>Diffie-Hellman</strong> resuelve otra cosa: permite <strong>acordar una clave compartida sobre un canal inseguro sin transmitirla nunca</strong> (se apoya en la dureza del logaritmo discreto). También es vulnerable a MITM si no se combina con autenticación.</p>`,
       },
       {
-        title: 'Criptografía asimétrica: RSA, DH y el esquema híbrido',
+        title: 'Modos de cifrado por bloques: ECB vs CBC',
+        widget: 'cbc-detail',
         html: `
-<p>Par de claves: <strong>pública</strong> (se difunde) y <strong>privada</strong> (secreta); lo cifrado con una solo se descifra con la otra. <strong>RSA</strong> se apoya en que <strong>factorizar el producto de dos primos grandes es inviable</strong> (<span class="formula">c = m^e mod n · m = c^d mod n</span>).</p>
-<p><strong>Confidencialidad</strong>: cifrar con la <strong>pública del receptor</strong>. Como es carísima, en la práctica todo es <strong>híbrido</strong>: la asimétrica solo para intercambiar una <strong>clave de sesión simétrica</strong>, y AES para el grueso — exactamente lo que hace TLS.</p>
-<p><strong>Diffie-Hellman</strong>: acordar una clave compartida sobre un canal inseguro sin transmitirla nunca (dureza del logaritmo discreto). Vulnerable a <strong>MITM</strong> si no se acompaña de autenticación → se combina con certificados.</p>`,
+<p>Un cifrador simétrico como AES trabaja sobre <strong>bloques de tamaño fijo</strong>. Elegir <em>cómo</em> encadenar esos bloques (el <strong>modo de operación</strong>) es tan importante como el algoritmo.</p>
+<p><strong>ECB</strong> (Electronic Code Book) es lo obvio: cifrar <strong>cada bloque por separado</strong>, sin relación entre ellos. Tiene una falla grave: <strong>bloques de texto plano iguales producen bloques cifrados iguales</strong> → se <strong>filtra la estructura</strong> del mensaje. El ejemplo canónico es la imagen del pingüino: cifrada con ECB <strong>se sigue reconociendo el dibujo</strong>. El atacante no descifra nada, pero ve qué se repite y dónde.</p>
+<p><strong>CBC</strong> (Cipher Block Chaining) lo arregla <strong>encadenando</strong>: cada bloque se mezcla (XOR) con el <strong>cifrado del bloque anterior</strong> antes de cifrarse — <span class="formula">c_i = K(m_i ⊕ c_(i−1))</span> — y el primero se mezcla con un <strong>IV (vector de inicialización) aleatorio</strong> que viaja en claro. Resultado: bloques repetidos dan cifrados distintos, y <strong>el mismo mensaje cifrado dos veces se ve diferente</strong> (porque el IV cambia).</p>
+<span class="warn"><strong>NUNCA reusar un IV con la misma clave.</strong> Si el IV se repite vuelven a aparecer los patrones y el cifrado se vuelve atacable: es exactamente <strong>lo que rompió a WEP</strong> (IV de solo 24 bits, que se repetía a las pocas horas de tráfico).</span>`,
       },
       {
-        title: 'Autenticación: la escalera ap1.0 → ap4.0',
+        title: 'Autenticación: la escalera ap1.0 → ap5.0',
+        widget: 'authproto-detail',
         html: `
-<p>Cómo cae cada versión ingenua (relato muy pedido):</p>
+<p>El relato más pedido del capítulo: cómo cada intento "obvio" de autenticar se rompe.</p>
 <ul>
-<li><strong>ap1.0</strong> — "soy Alice": cualquiera lo dice.</li>
-<li><strong>ap2.0</strong> — + su IP: cae con <strong>IP spoofing</strong>.</li>
-<li><strong>ap3.0</strong> — + contraseña: cae con <strong>sniffing</strong>.</li>
-<li><strong>ap3.1</strong> — contraseña cifrada: cae igual con <strong>replay</strong> (se reenvía el cifrado tal cual, sin descifrarlo).</li>
-<li><strong>ap4.0</strong> — Bob manda un <strong>nonce R</strong>; Alice responde K(R). Como R cambia en cada intento, lo grabado no sirve.</li>
+<li><strong>ap1.0</strong> — "soy Alice": <strong>cualquiera puede decirlo</strong>.</li>
+<li><strong>ap2.0</strong> — + su dirección IP: cae con <strong>IP spoofing</strong> (nada impide poner una IP origen falsa).</li>
+<li><strong>ap3.0</strong> — + contraseña: cae con <strong>sniffing</strong> (viaja en claro; se escucha una vez y listo).</li>
+<li><strong>ap3.1</strong> — contraseña <em>cifrada</em>: <strong>cae igual, por replay</strong>. Y este es el punto fino: Trudy <strong>no necesita descifrar nada</strong> — graba los bytes cifrados tal cual y los <strong>reenvía</strong>. Bob los descifra, dan bien, y la deja pasar.</li>
+<li><strong>ap4.0</strong> ✔ — Bob manda un <strong>nonce R</strong> (número aleatorio de un solo uso) y Alice responde <span class="formula">K(R)</span>. Como R <strong>cambia en cada intento</strong>, lo grabado antes ya no sirve.</li>
+<li><strong>ap5.0</strong> — la misma idea con <strong>clave pública</strong>: Alice <strong>firma el nonce con su privada</strong> y Bob verifica con la pública. Ventaja: no hace falta un secreto compartido previo. Pero <strong>cae por MITM</strong> si Trudy logra hacerle creer a Bob que <em>su</em> clave pública es la de Alice.</li>
 </ul>
-<span class="tip">El nonce prueba que Alice está <em>viva y respondiendo AHORA</em>, no que alguien grabó algo viejo. La versión con clave pública necesita certificados para no caer en MITM.</span>`,
+<span class="tip">Las dos moralejas: el <strong>nonce</strong> prueba que Alice está <strong>viva y respondiendo AHORA</strong> (mata el replay), y la criptografía de clave pública <strong>siempre necesita certificados</strong> para no caer en MITM. Y la general: <strong>cifrar no es autenticar</strong>.</span>`,
       },
       {
         title: 'Integridad: hash, HMAC, firma digital y PKI',
+        widget: 'sign-detail',
         html: `
-<p><strong>Hash criptográfico</strong> (SHA-256; MD5/SHA-1 ya inseguros): una sola vía + resistente a colisiones → huella de tamaño fijo.</p>
-<p><strong>MAC / HMAC</strong>: hash del mensaje mezclado con un <strong>secreto compartido</strong> → integridad + autenticación de origen. <em>Ojo con la sigla: Message Authentication Code ≠ dirección MAC de capa 2.</em></p>
-<p><strong>Firma digital</strong>: hash del mensaje <strong>cifrado con la privada del emisor</strong>; cualquiera verifica con la pública → integridad + autenticación + <strong>no repudio</strong>. Se firma el hash (no el mensaje) por eficiencia.</p>
-<p><strong>Certificados y PKI</strong>: ¿cómo sé que una clave pública es de quien dice? Una <strong>CA</strong> firma un certificado <strong>X.509</strong> (identidad + clave pública + validez + firma de la CA). Se valida la <strong>cadena de confianza</strong> hasta una CA raíz del trust store. Es <strong>lo que frena el MITM</strong>.</p>`,
+<p>Cuatro escalones, cada uno tapando el agujero del anterior.</p>
+<p><strong>1 · Hash criptográfico</strong> (SHA-256; MD5 y SHA-1 ya inseguros): huella de <strong>tamaño fijo</strong>, de <strong>una sola vía</strong> y resistente a colisiones. Detecta alteraciones… <strong>pero no frente a un atacante</strong>: como el hash es público, Trudy puede cambiar el mensaje <strong>y recalcular la huella</strong>.</p>
+<p><strong>2 · MAC / HMAC</strong>: se mezcla el mensaje con un <strong>secreto compartido</strong> antes de hashear. Ahora Trudy no puede fabricar una huella válida → <strong>integridad + autenticación de origen</strong>. <em>Ojo con la sigla: Message Authentication Code ≠ la dirección MAC de capa 2.</em> Su límite: como <strong>los dos extremos comparten el secreto, los dos pueden generarlo</strong> → <strong>no hay no repudio</strong>.</p>
+<p><strong>3 · Firma digital</strong>: se calcula el hash del mensaje y se <strong>cifra con la clave PRIVADA del emisor</strong> (al revés que para confidencialidad, que era la pública del receptor). Cualquiera verifica con la pública. Da integridad + autenticación + <strong>NO REPUDIO</strong>, porque <strong>solo el dueño de la privada pudo generarla</strong>. Se firma el <strong>hash</strong> y no el mensaje entero por eficiencia.</p>
+<p><strong>4 · Certificados y PKI</strong>: todo lo anterior asume que tenés la <strong>clave pública correcta</strong>. Si Trudy sustituye la clave pública, firma con la suya y le hace creer a Bob que es Alice → <strong>MITM</strong>. Solución: una <strong>CA</strong> verifica la identidad y <strong>firma un certificado X.509</strong> (identidad + clave pública + validez + firma de la CA). El navegador lo valida con la pública de la CA que ya tiene en su <strong>trust store</strong>, siguiendo la <strong>cadena de confianza</strong> hasta una <strong>CA raíz</strong>.</p>
+<span class="warn">Dos confusiones que se preguntan: <strong>(1)</strong> ni el HMAC ni la firma <strong>ocultan</strong> el mensaje — dan integridad/autenticación, <strong>no confidencialidad</strong>; para eso hay que cifrar aparte. <strong>(2)</strong> integridad y confidencialidad son <strong>independientes</strong>: una no implica la otra.</span>`,
       },
       {
         title: 'TLS (transporte) → HTTPS',

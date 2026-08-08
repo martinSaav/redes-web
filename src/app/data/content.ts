@@ -48,6 +48,8 @@ export interface Topic {
     | 'cbc-detail'
     | 'sign-detail'
     | 'authproto-detail'
+    | 'firewall-detail'
+    | 'secprops-detail'
     | 'bgppropag-detail'
     | 'ospf-detail'
     | 'rip-detail'; // componentes a medida
@@ -774,14 +776,17 @@ export const SECTIONS: Section[] = [
     topics: [
       {
         title: 'Las propiedades deseadas',
+        widget: 'secprops-detail',
         html: `
+<p>"Seguridad" no es una sola cosa: son <strong>cinco propiedades distintas e independientes</strong>, y <strong>cada una se consigue con un mecanismo diferente</strong>.</p>
 <ul>
-<li><strong>Confidencialidad</strong>: solo emisor y receptor entienden el contenido → cifrado.</li>
-<li><strong>Integridad</strong>: cualquier alteración se detecta. ¡No implica confidencialidad ni al revés!</li>
-<li><strong>Autenticación</strong>: confirmar con quién hablás (de entidad y de origen del mensaje).</li>
-<li><strong>No repudio</strong>: el emisor no puede negar haber enviado (firma digital).</li>
-<li><strong>Disponibilidad</strong>: que el servicio siga en pie (la atacan los DoS).</li>
-</ul>`,
+<li><strong>Confidencialidad</strong> — que nadie más lo <em>lea</em>. La ataca el <strong>sniffing</strong>; se consigue con <strong>cifrado</strong>.</li>
+<li><strong>Integridad</strong> — que nadie lo <em>modifique</em> sin que se note. La ataca la <strong>alteración en tránsito</strong>; se consigue con <strong>hash + MAC/HMAC</strong>.</li>
+<li><strong>Autenticación</strong> — saber <em>con quién</em> estás hablando (de entidad y de origen del mensaje). La atacan la <strong>suplantación, el MITM y el replay</strong>; se consigue con <strong>nonces + firma/MAC + certificados</strong>.</li>
+<li><strong>No repudio</strong> — que el emisor no pueda <em>negar</em> después haber enviado. Se consigue <strong>únicamente con firma digital</strong>.</li>
+<li><strong>Disponibilidad</strong> — que el servicio siga en pie. La atacan los <strong>DoS/DDoS</strong>; se defiende con <strong>redundancia, filtrado y rate limiting</strong>.</li>
+</ul>
+<span class="warn"><strong>Las tres confusiones que se preguntan:</strong> <strong>(1)</strong> integridad ≠ confidencialidad — un mensaje puede llegar íntegro pero leído por todos, o cifrado pero alterado; <strong>(2)</strong> <strong>cifrar no autentica</strong>: que el mensaje esté cifrado no prueba quién lo mandó; <strong>(3)</strong> <strong>el HMAC no da no repudio</strong>, porque los dos extremos comparten el secreto y cualquiera de los dos pudo generarlo.</span>`,
       },
       {
         title: 'Amenazas',
@@ -861,16 +866,15 @@ export const SECTIONS: Section[] = [
       },
       {
         title: 'Firewalls e IDS/IPS',
+        widget: 'firewall-detail',
         html: `
-<p><strong>Firewall</strong> — tres objetivos: (1) TODO el tráfico pasa por él, (2) solo pasa lo autorizado por la política, (3) él mismo es resistente. Tipos:</p>
-<ul>
-<li><strong>Stateless</strong>: reglas fijas sobre campos (IPs, puertos, flags). Veloz, ciego al contexto.</li>
-<li><strong>Stateful</strong>: tabla de conexiones — deja entrar solo respuestas a conexiones que la red interna inició.</li>
-<li><strong>Application gateway / proxy</strong>: inspecciona contenido, políticas por usuario.</li>
-</ul>
-<p>Arquitectura: <strong>DMZ</strong> para los servidores expuestos, con firewalls a ambos lados.</p>
-<p><strong>IDS vs IPS</strong>: por <strong>firma</strong> (base de ataques conocidos — Snort) o por <strong>anomalía</strong> (desvíos estadísticos: pesca ataques nuevos, más falsos positivos). El IDS <strong>avisa</strong> (pasivo); el IPS está <strong>en línea y bloquea</strong>.</p>
-<p><strong>Conclusión del capítulo</strong>: la seguridad es un <strong>proceso continuo</strong> (defense in depth); el sistema es tan seguro como su <strong>eslabón más débil</strong>; siempre hay trade-off seguridad/performance/usabilidad.</p>`,
+<p>Un <strong>firewall</strong> tiene <strong>tres objetivos</strong> que se preguntan juntos: <strong>(1)</strong> TODO el tráfico entre adentro y afuera pasa por él, <strong>(2)</strong> solo pasa lo autorizado por la política, <strong>(3)</strong> él mismo es <strong>resistente</strong> a ataques (si lo comprometen, no sirvió de nada).</p>
+<p><strong>Filtro stateless (de paquetes)</strong>: decide con <strong>reglas fijas sobre los campos del header</strong> — IPs, puertos, protocolo, flags. Evalúa cada paquete <strong>aislado, sin memoria</strong>. Es <strong>rapidísimo</strong>, pero <strong>ciego al contexto</strong>: como para dejar entrar las respuestas web hay que permitir tráfico entrante desde el puerto 80 hacia puertos altos, un atacante puede <strong>forjar un paquete con puerto origen 80 y el flag ACK</strong> y <strong>colarse</strong> aunque nunca haya existido esa conexión (está animado en el diagrama).</p>
+<p><strong>Firewall stateful</strong>: mantiene una <strong>tabla de conexiones</strong> y solo deja entrar tráfico que <strong>machea una conexión que la red interna inició</strong>. El mismo paquete forjado de antes <strong>se descarta</strong>, porque no hay entrada que le corresponda. Al cerrarse la conexión (FIN) o vencer por timeout, la entrada se borra. Costo: hay que <strong>mantener estado</strong> (memoria y CPU por conexión).</p>
+<p><strong>Application gateway / proxy</strong>: no mira headers sino que <strong>termina la conexión</strong> e inspecciona el <strong>contenido de capa de aplicación</strong>, abriendo él mismo la conexión al destino. Permite políticas <strong>por usuario</strong> y filtrado por contenido; a cambio es más lento y hace falta uno por aplicación.</p>
+<p><strong>Arquitectura DMZ</strong>: los servidores públicos (web, mail, DNS) van en una <strong>zona intermedia entre dos firewalls</strong>, no en la red interna. ¿Por qué? Porque son los <strong>más expuestos</strong> — tienen que aceptar conexiones de cualquiera. Si comprometen el servidor web, el atacante queda <strong>atrapado en la DMZ</strong>, con el firewall interno todavía adelante.</p>
+<p><strong>IDS vs IPS</strong>: ambos hacen <strong>deep packet inspection</strong> (miran el contenido, no solo headers) y detectan por <strong>firma</strong> (base de ataques conocidos — <em>Snort</em>) o por <strong>anomalía</strong> (desvíos estadísticos del tráfico normal: pescan ataques nuevos, pero con más <strong>falsos positivos</strong>). La diferencia: el <strong>IDS es pasivo</strong> — está al costado y <strong>avisa</strong>; el <strong>IPS está en línea</strong> en el camino del tráfico y <strong>bloquea</strong>. El IPS es más potente pero más riesgoso: un falso positivo <strong>corta tráfico legítimo</strong>.</p>
+<span class="tip"><strong>Conclusión del capítulo</strong>: <strong>defense in depth</strong> — ninguna capa alcanza sola. La seguridad es un <strong>proceso continuo</strong>, no un producto; el sistema es tan seguro como su <strong>eslabón más débil</strong>; y siempre hay <strong>trade-off</strong> seguridad / performance / usabilidad.</span>`,
       },
     ],
   },

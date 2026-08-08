@@ -47,6 +47,8 @@ import { CryptoDetail } from '../components/detail/crypto-detail';
 import { CbcDetail } from '../components/detail/cbc-detail';
 import { SignDetail } from '../components/detail/sign-detail';
 import { AuthprotoDetail } from '../components/detail/authproto-detail';
+import { FirewallDetail } from '../components/detail/firewall-detail';
+import { SecpropsDetail } from '../components/detail/secprops-detail';
 import { BgppropagDetail } from '../components/detail/bgppropag-detail';
 import { OspfDetail } from '../components/detail/ospf-detail';
 import { RipDetail } from '../components/detail/rip-detail';
@@ -102,6 +104,8 @@ import { RipDetail } from '../components/detail/rip-detail';
     CbcDetail,
     SignDetail,
     AuthprotoDetail,
+    FirewallDetail,
+    SecpropsDetail,
     BgppropagDetail,
     OspfDetail,
     RipDetail,
@@ -172,6 +176,8 @@ import { RipDetail } from '../components/detail/rip-detail';
               @case ('cbc-detail') { <app-cbc-detail /> }
               @case ('sign-detail') { <app-sign-detail /> }
               @case ('authproto-detail') { <app-authproto-detail /> }
+              @case ('firewall-detail') { <app-firewall-detail /> }
+              @case ('secprops-detail') { <app-secprops-detail /> }
               @case ('bgppropag-detail') { <app-bgppropag-detail /> }
               @case ('ospf-detail') { <app-ospf-detail /> }
               @case ('rip-detail') { <app-rip-detail /> }

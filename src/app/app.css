@@ -30,6 +30,8 @@
 .brand-txt strong { font-size: 1.15rem; }
 .brand-txt small { color: var(--text-dim); font-size: 0.72rem; }
 
+.side-search { margin-bottom: 14px; }
+
 .nav { display: flex; flex-direction: column; gap: 2px; }
 
 .nav-item {

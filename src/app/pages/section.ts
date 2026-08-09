@@ -132,58 +132,214 @@ import { RipDetail } from '../components/detail/rip-detail';
             <h2><span class="num">{{ i + 1 }}</span> {{ t.title }}</h2>
             <div class="topic-body" [innerHTML]="t.html"></div>
             @switch (t.widget) {
-              @case ('cwnd') { <app-cwnd-chart /> }
-              @case ('tcp-seq') { <app-tcp-seq /> }
-              @case ('gbn-sim') { <app-gbn-sim /> }
-              @case ('nat-detail') { <app-nat-detail /> }
-              @case ('encap') { <app-encap-anim /> }
-              @case ('switch-detail') { <app-switch-detail /> }
-              @case ('dns-detail') { <app-dns-detail /> }
-              @case ('day-detail') { <app-day-detail /> }
-              @case ('delays-detail') { <app-delays-detail /> }
-              @case ('cdn-detail') { <app-cdn-detail /> }
-              @case ('mitm-detail') { <app-mitm-detail /> }
-              @case ('dhcp-detail') { <app-dhcp-detail /> }
-              @case ('traceroute-detail') { <app-traceroute-detail /> }
-              @case ('arp-detail') { <app-arp-detail /> }
-              @case ('wifi-detail') { <app-wifi-detail /> }
-              @case ('tls-detail') { <app-tls-detail /> }
-              @case ('frag-detail') { <app-frag-detail /> }
-              @case ('dijkstra-detail') { <app-dijkstra-detail /> }
-              @case ('bgp-detail') { <app-bgp-detail /> }
-              @case ('subnet-detail') { <app-subnet-detail /> }
-              @case ('csmacd-detail') { <app-csmacd-detail /> }
-              @case ('quiz-detail') { <app-quiz-detail /> }
-              @case ('router-detail') { <app-router-detail /> }
-              @case ('sdn-detail') { <app-sdn-detail /> }
-              @case ('dv-detail') { <app-dv-detail /> }
-              @case ('http2-detail') { <app-http2-detail /> }
-              @case ('wpa-detail') { <app-wpa-detail /> }
-              @case ('ipsec-detail') { <app-ipsec-detail /> }
-              @case ('playout-detail') { <app-playout-detail /> }
-              @case ('tcp-sim') { <app-tcp-sim /> }
-              @case ('crc-detail') { <app-crc-detail /> }
-              @case ('switching-detail') { <app-switching-detail /> }
-              @case ('flowctl-detail') { <app-flowctl-detail /> }
-              @case ('mac-detail') { <app-mac-detail /> }
-              @case ('cast-detail') { <app-cast-detail /> }
-              @case ('dvconv-detail') { <app-dvconv-detail /> }
-              @case ('mobility-detail') { <app-mobility-detail /> }
-              @case ('medium-detail') { <app-medium-detail /> }
-              @case ('cellular-detail') { <app-cellular-detail /> }
-              @case ('assoc-detail') { <app-assoc-detail /> }
-              @case ('csmaca-detail') { <app-csmaca-detail /> }
-              @case ('frame80211-detail') { <app-frame80211-detail /> }
-              @case ('crypto-detail') { <app-crypto-detail /> }
-              @case ('cbc-detail') { <app-cbc-detail /> }
-              @case ('sign-detail') { <app-sign-detail /> }
-              @case ('authproto-detail') { <app-authproto-detail /> }
-              @case ('firewall-detail') { <app-firewall-detail /> }
-              @case ('secprops-detail') { <app-secprops-detail /> }
-              @case ('fabric-detail') { <app-fabric-detail /> }
-              @case ('bgppropag-detail') { <app-bgppropag-detail /> }
-              @case ('ospf-detail') { <app-ospf-detail /> }
-              @case ('rip-detail') { <app-rip-detail /> }
+              @case ('cwnd') {
+                @defer (on viewport; prefetch on idle) { <app-cwnd-chart /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('tcp-seq') {
+                @defer (on viewport; prefetch on idle) { <app-tcp-seq /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('gbn-sim') {
+                @defer (on viewport; prefetch on idle) { <app-gbn-sim /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('nat-detail') {
+                @defer (on viewport; prefetch on idle) { <app-nat-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('encap') {
+                @defer (on viewport; prefetch on idle) { <app-encap-anim /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('switch-detail') {
+                @defer (on viewport; prefetch on idle) { <app-switch-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('dns-detail') {
+                @defer (on viewport; prefetch on idle) { <app-dns-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('day-detail') {
+                @defer (on viewport; prefetch on idle) { <app-day-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('delays-detail') {
+                @defer (on viewport; prefetch on idle) { <app-delays-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('cdn-detail') {
+                @defer (on viewport; prefetch on idle) { <app-cdn-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('mitm-detail') {
+                @defer (on viewport; prefetch on idle) { <app-mitm-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('dhcp-detail') {
+                @defer (on viewport; prefetch on idle) { <app-dhcp-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('traceroute-detail') {
+                @defer (on viewport; prefetch on idle) { <app-traceroute-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('arp-detail') {
+                @defer (on viewport; prefetch on idle) { <app-arp-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('wifi-detail') {
+                @defer (on viewport; prefetch on idle) { <app-wifi-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('tls-detail') {
+                @defer (on viewport; prefetch on idle) { <app-tls-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('frag-detail') {
+                @defer (on viewport; prefetch on idle) { <app-frag-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('dijkstra-detail') {
+                @defer (on viewport; prefetch on idle) { <app-dijkstra-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('bgp-detail') {
+                @defer (on viewport; prefetch on idle) { <app-bgp-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('subnet-detail') {
+                @defer (on viewport; prefetch on idle) { <app-subnet-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('csmacd-detail') {
+                @defer (on viewport; prefetch on idle) { <app-csmacd-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('quiz-detail') {
+                @defer (on viewport; prefetch on idle) { <app-quiz-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('router-detail') {
+                @defer (on viewport; prefetch on idle) { <app-router-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('sdn-detail') {
+                @defer (on viewport; prefetch on idle) { <app-sdn-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('dv-detail') {
+                @defer (on viewport; prefetch on idle) { <app-dv-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('http2-detail') {
+                @defer (on viewport; prefetch on idle) { <app-http2-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('wpa-detail') {
+                @defer (on viewport; prefetch on idle) { <app-wpa-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('ipsec-detail') {
+                @defer (on viewport; prefetch on idle) { <app-ipsec-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('playout-detail') {
+                @defer (on viewport; prefetch on idle) { <app-playout-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('tcp-sim') {
+                @defer (on viewport; prefetch on idle) { <app-tcp-sim /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('crc-detail') {
+                @defer (on viewport; prefetch on idle) { <app-crc-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('switching-detail') {
+                @defer (on viewport; prefetch on idle) { <app-switching-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('flowctl-detail') {
+                @defer (on viewport; prefetch on idle) { <app-flowctl-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('mac-detail') {
+                @defer (on viewport; prefetch on idle) { <app-mac-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('cast-detail') {
+                @defer (on viewport; prefetch on idle) { <app-cast-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('dvconv-detail') {
+                @defer (on viewport; prefetch on idle) { <app-dvconv-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('mobility-detail') {
+                @defer (on viewport; prefetch on idle) { <app-mobility-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('medium-detail') {
+                @defer (on viewport; prefetch on idle) { <app-medium-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('cellular-detail') {
+                @defer (on viewport; prefetch on idle) { <app-cellular-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('assoc-detail') {
+                @defer (on viewport; prefetch on idle) { <app-assoc-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('csmaca-detail') {
+                @defer (on viewport; prefetch on idle) { <app-csmaca-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('frame80211-detail') {
+                @defer (on viewport; prefetch on idle) { <app-frame80211-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('crypto-detail') {
+                @defer (on viewport; prefetch on idle) { <app-crypto-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('cbc-detail') {
+                @defer (on viewport; prefetch on idle) { <app-cbc-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('sign-detail') {
+                @defer (on viewport; prefetch on idle) { <app-sign-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('authproto-detail') {
+                @defer (on viewport; prefetch on idle) { <app-authproto-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('firewall-detail') {
+                @defer (on viewport; prefetch on idle) { <app-firewall-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('secprops-detail') {
+                @defer (on viewport; prefetch on idle) { <app-secprops-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('fabric-detail') {
+                @defer (on viewport; prefetch on idle) { <app-fabric-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('bgppropag-detail') {
+                @defer (on viewport; prefetch on idle) { <app-bgppropag-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('ospf-detail') {
+                @defer (on viewport; prefetch on idle) { <app-ospf-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('rip-detail') {
+                @defer (on viewport; prefetch on idle) { <app-rip-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
             }
           </article>
         }
@@ -242,6 +398,23 @@ import { RipDetail } from '../components/detail/rip-detail';
     .toc-item:hover { color: var(--c); border-color: var(--c); }
 
     .topic { margin-bottom: 36px; scroll-margin-top: 20px; }
+
+    /* Placeholder mientras el diagrama (lazy) entra en viewport.
+       El min-height evita que el scroll salte cuando se carga. */
+    .wph {
+      min-height: 420px;
+      margin: 18px 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(100deg, transparent 30%, rgba(255,255,255,0.035) 50%, transparent 70%),
+        var(--panel);
+      background-size: 220% 100%, auto;
+      animation: wph-shimmer 1.6s ease-in-out infinite;
+    }
+    @keyframes wph-shimmer { from { background-position: 180% 0, 0 0; } to { background-position: -80% 0, 0 0; } }
+    @media (prefers-reduced-motion: reduce) { .wph { animation: none; } }
+
     .topic h2 {
       display: flex;
       align-items: center;

@@ -1699,10 +1699,12 @@ export const SECTIONS: Section[] = [
         title: 'Fundamentos y retardos',
         html: `
 <ul>
-<li><span class="formula">d_trans = L/R</span> (empujar bits) vs <span class="formula">d_prop = d/s</span> (viaje físico). Ancho de banda vs distancia. No confundir.</li>
+<li><span class="formula">d_trans = L/R</span> (empujar bits) vs <span class="formula">d_prop = d/s</span> (viaje físico). Ancho de banda vs distancia. No confundir. Satélite = d_trans chico, d_prop enorme.</li>
 <li>Throughput end-to-end = <strong>bottleneck</strong> = min(Ri).</li>
 <li>Retardo de <strong>cola</strong> = el único variable → <strong>jitter</strong>. La/R → 1 = colas explotan.</li>
-<li>Paquetes = multiplexación estadística, eficiente, sin garantías; circuitos = reserva fija, garantizado pero desperdiciado.</li>
+<li>Paquetes = multiplexación estadística, eficiente, sin garantías; circuitos = reserva fija, garantizado pero desperdiciado. Cálculo: 1 Mbps, usuarios 100 kbps al 10% → circuitos <strong>10</strong>, paquetes <strong>~35</strong>.</li>
+<li><strong>store-and-forward</strong>: el router recibe el paquete ENTERO antes de reenviar → N enlaces cuestan N·L/R.</li>
+<li>Capas: hosts las <strong>4</strong>; routers hasta <strong>red</strong>; switches hasta <strong>enlace</strong>. Unidades: mensaje / segmento / datagrama / trama.</li>
 </ul>`,
       },
       {
@@ -1712,7 +1714,9 @@ export const SECTIONS: Section[] = [
 <li>HTTP <strong>stateless</strong>; estado = cookies. Conditional GET → <strong>304</strong>. HTTP/2 multiplexación; HTTP/3 sobre QUIC.</li>
 <li>SMTP = <strong>push</strong> (25, envío); IMAP/POP = <strong>pull</strong> (lectura).</li>
 <li>DNS: UDP/53, root → TLD → authoritative, caching con TTL. Recursiva (host→local) vs iterativa (local→resto). A/AAAA/NS/CNAME/MX.</li>
-<li>P2P autoescala (BitTorrent: rarest first + tit-for-tat). CDN: enter-deep vs bring-home, redirección por DNS, anycast.</li>
+<li>P2P <strong>autoescala</strong>: en C-S el término es N·F/u_s (lineal con N); en P2P es N·F/(u_s + Σu_i) — el denominador <strong>crece con N</strong>. BitTorrent: rarest first + tit-for-tat + optimistic unchoke.</li>
+<li>CDN: enter-deep vs bring-home, redirección por <strong>DNS</strong> (CNAME → DNS de la CDN), anycast. <strong>DASH</strong>: la inteligencia está en el CLIENTE, sobre HTTP común.</li>
+<li>HTTP/2 arregla el HOL <em>de HTTP</em> pero NO el <strong>HOL de TCP</strong> (una pérdida frena todos los streams) → eso lo arregla HTTP/3 sobre QUIC.</li>
 </ul>`,
       },
       {
@@ -1726,7 +1730,10 @@ export const SECTIONS: Section[] = [
 <li><strong>Tahoe</strong>: toda pérdida → cwnd = 1. <strong>Reno</strong>: 3 dup ACK → mitad (fast recovery); solo timeout → 1.</li>
 <li>CUBIC: función cúbica del tiempo (alto BDP). BBR: señal = delay, no pérdida (YouTube/B4).</li>
 <li>Flujo (rwnd, receptor) ≠ congestión (cwnd, red). Se manda min(cwnd, rwnd).</li>
-<li>Handshake 3 vías; cierre 4 vías + TIME_WAIT. QUIC: UDP + TLS integrado + streams sin HOL.</li>
+<li>Handshake <strong>3 vías</strong> (son 3 porque es full-duplex: hay que sincronizar 2 ISN); cierre 4 vías + TIME_WAIT (2·MSL). QUIC: UDP + TLS integrado + streams sin HOL + migración de conexión.</li>
+<li>TCP es <strong>byte-stream</strong>: numera BYTES y <strong>NO preserva los límites de los mensajes</strong> (UDP sí: 1 datagrama = 1 mensaje).</li>
+<li><strong>SYN cookies</strong>: el server no guarda estado; el ISN del SYN-ACK es un hash de la cuádrupla, y si vuelve el ACK recién ahí crea la conexión.</li>
+<li>rdt: 1.0 perfecto → 2.0 checksum+ACK/NAK → 2.1/2.2 <strong>nº de secuencia</strong> (ACK duplicado en vez de NAK) → 3.0 <strong>timer</strong>. Stop-and-wait: <span class="formula">U = (L/R)/(RTT + L/R)</span> → 0,027% en 1 Gbps.</li>
 </ul>`,
       },
       {
@@ -1741,6 +1748,10 @@ export const SECTIONS: Section[] = [
 <li>Buffers: B = RTT·C (o /√N). Bufferbloat → AQM (RED, CoDel).</li>
 <li>Scheduling: FIFO, prioridad, RR, <strong>WFQ</strong>.</li>
 <li>Match+action (OpenFlow): la misma caja hace de router/switch/firewall/NAT.</li>
+<li>Router = 4 componentes: puertos de entrada · <strong>switching fabric</strong> · puertos de salida · procesador de ruteo (el único en el <em>control plane</em>).</li>
+<li>Lookup <strong>descentralizado</strong>: cada puerto tiene su <em>shadow copy</em> de la tabla → decide en paralelo, a line speed. Tabla de <strong>ruteo</strong> (grande, control) ≠ tabla de <strong>reenvío</strong> (compacta, data).</li>
+<li>Fabric: <strong>memoria</strong> (2 pasadas por el bus → B/2) · <strong>bus</strong> (1 paquete a la vez) · <strong>crossbar</strong> (2N buses, paralelo, <em>no bloqueante</em> salvo misma salida).</li>
+<li><strong>HOL blocking</strong>: colas de ENTRADA — el del frente traba a los de atrás aunque su salida esté libre.</li>
 </ul>`,
       },
       {
@@ -1748,7 +1759,10 @@ export const SECTIONS: Section[] = [
         html: `
 <ul>
 <li><strong>LS</strong> (Dijkstra, mapa completo, converge rápido) vs <strong>DV</strong> (Bellman-Ford, vecinos, count-to-infinity → poisoned reverse parcial).</li>
-<li>IGP: OSPF (LS) / RIP (DV, máx 15 hops). EGP: <strong>BGP</strong> (TCP/179, políticas).</li>
+<li>Raíz del count-to-infinity: en DV se sabe el <strong>costo pero no el camino</strong>. Poisoned reverse resuelve bucles de <strong>2 nodos, NO de 3+</strong>. En LS un router mentiroso solo arruina su tabla; en DV el error se <strong>propaga</strong>.</li>
+<li>OSPF floodea <strong>LSAs</strong> → todos con la misma <strong>LSDB</strong> (el mapa crudo) → cada uno corre Dijkstra. Pipeline: LSA → flooding → LSDB → Dijkstra → tabla. Escala con <strong>áreas</strong> (backbone = área 0, ABRs).</li>
+<li>IGP: OSPF (LS) / RIP (DV, métrica = <strong>saltos</strong>, máx 15 = ∞ a los 16, vectores cada 30 s, tabla <em>subred/próximo router/saltos</em>). EGP: <strong>BGP</strong> (TCP/179, políticas).</li>
+<li>BGP es <strong>path-vector</strong>: anuncia el AS-PATH completo → detecta bucles al instante (ve su propio ASN → descarta) y por eso <strong>no sufre count-to-infinity</strong>.</li>
 <li>Orden BGP: <strong>1) local pref · 2) AS-PATH corto · 3) hot-potato · 4) IDs</strong>.</li>
 <li>traceroute = TTL + ICMP Time Exceeded; ping = Echo; UDP a puerto cerrado → Port Unreachable. ICMPv6 → Neighbor Discovery (reemplaza ARP).</li>
 <li>SDN: packet-in (switch pregunta) / flow-mod (controlador instala). Southbound = OpenFlow; apps por northbound.</li>
@@ -1764,17 +1778,22 @@ export const SECTIONS: Section[] = [
 <li>MAC 48 bits, plana. <strong>IP = postal / MAC = DNI</strong>.</li>
 <li>ARP: IP→MAC en la MISMA subred; para salir → MAC del <strong>gateway</strong>.</li>
 <li><strong>La IP no cambia; la MAC se reescribe en cada enlace.</strong></li>
-<li>Switch: self-learning, filtra/descarta/floodea, NO aísla broadcast (router sí).</li>
-<li>VLAN: 802.1Q, ID 12 bits. MPLS: label 20 bits, "capa 2.5", TE + VPN + fast reroute.</li>
+<li>Switch: self-learning (aprende de la MAC <strong>origen</strong>), 3 casos: reenvía / <strong>descarta</strong> (misma interfaz) / <strong>floodea</strong> (no está). NO aísla broadcast (router sí). En capa 2 <strong>no hay TTL</strong> → por eso hace falta Spanning Tree.</li>
+<li>Ethernet: payload <strong>46–1500</strong> (el mínimo existe para que CSMA/CD llegue a detectar la colisión; el máximo es el MTU). Servicio <strong>no confiable y sin conexión</strong>. Con switches full-duplex <strong>ya no hay colisiones ni CSMA/CD</strong>.</li>
+<li>VLAN: 802.1Q, ID 12 bits (4094), tag de 4 B → trama máx 1522. Cruzar VLANs <strong>requiere rutear</strong>. MPLS: label 20 bits, "capa 2.5", TE + VPN + fast reroute.</li>
 </ul>`,
       },
       {
         title: 'Inalámbrica y movilidad',
         html: `
 <ul>
-<li>WiFi = CSMA/<strong>CA</strong> + ACK explícito + backoff + RTS/CTS (terminal oculto). Trama con 4 direcciones.</li>
-<li>Home address (permanente) vs COA (temporal). Indirect (triángulo) vs direct routing. Mobile IP.</li>
-<li>LTE all-IP: eNodeB, MME (+HSS), S-GW/PDN-GW. Handover sin corte.</li>
+<li>No hay CSMA/CD por <strong>2 razones</strong>: tu señal tapa la ajena, y la colisión pasa <strong>en el receptor</strong> (terminal oculto). Por eso: CSMA/<strong>CA</strong> + <strong>ACK explícito</strong> (su ausencia = única señal de falla) + RTS/CTS opcional.</li>
+<li>Ciclo CSMA/CA: escuchar → <strong>DIFS</strong> → <strong>backoff aleatorio que se CONGELA</strong> si el canal se ocupa (≠ Ethernet, que reinicia) → transmitir → <strong>SIFS</strong> → ACK. <strong>SIFS &lt; DIFS</strong> a propósito: el ACK tiene prioridad.</li>
+<li><strong>NAV</strong> = <em>virtual carrier sensing</em>, se alimenta del campo Duration. Terminal <strong>oculto</strong> (colisiona sin saber) vs <strong>expuesto</strong> (se calla de más).</li>
+<li>Trama 802.11: el formato prevé 4 direcciones pero en <strong>infraestructura van 3</strong> — addr1 receptor por radio, addr2 transmisor (para el ACK), addr3 <strong>la otra punta</strong> (el puente aire↔cable). Addr4 solo ad hoc.</li>
+<li>Asociación: scanning <strong>pasivo</strong> (escuchar beacons) vs <strong>activo</strong> (probe request). Secuencia: scanning → (auth) → asociación → <strong>DHCP</strong>. Canales no solapados en 2.4 GHz: <strong>1, 6, 11</strong>.</li>
+<li>Home address (permanente) vs <strong>COA</strong> (temporal). <strong>Indirect</strong> = todo por el home agent que tunelea (problema del <strong>triángulo</strong>) vs <strong>direct</strong> = pide la COA y manda directo. Mobile IP.</li>
+<li>LTE all-IP: eNodeB (única parte inalámbrica), <strong>MME</strong> (+HSS) = control, <strong>S-GW</strong> (ancla, sobrevive handovers) / PDN-GW = datos. Handover sin corte: se prepara la celda destino <strong>antes</strong> de soltar la origen. Celdas más chicas = <strong>más capacidad</strong> (reúso de frecuencias).</li>
 </ul>`,
       },
       {
@@ -1782,16 +1801,18 @@ export const SECTIONS: Section[] = [
         html: `
 <ul>
 <li>Propiedades: confidencialidad · integridad · autenticación · no repudio · disponibilidad.</li>
-<li>AES + CBC (IV aleatorio, nunca reusar). RSA (factorizar) / DH (log discreto, MITM sin autenticación).</li>
+<li><strong>Simétrica</strong>: rápida, problema = distribuir la clave, <strong>N(N−1)/2</strong> claves. <strong>Asimétrica</strong>: resuelve la distribución, <strong>2N</strong> claves, pero ~1000× más lenta. <strong>Híbrida</strong> = asimétrica una vez para acordar la clave de sesión + AES para el volumen (= TLS).</li>
+<li><strong>ECB</strong>: bloques iguales → cifrados iguales (el <em>pingüino</em> se sigue viendo). <strong>CBC</strong>: <span class="formula">c_i = K(m_i ⊕ c_(i−1))</span> con IV aleatorio. <strong>Nunca reusar IV con la misma clave</strong> (rompió WEP).</li>
+<li>RSA (factorizar) / DH (log discreto, MITM sin autenticación).</li>
 <li>Confidencialidad: cifrar con la <strong>pública del receptor</strong>. Firma: hash con la <strong>privada del emisor</strong> (no repudio). Todo híbrido en la práctica.</li>
-<li>ap4.0: el <strong>nonce</strong> frena el replay.</li>
-<li>HMAC = hash + secreto. "MAC" ambiguo: dirección vs Message Authentication Code.</li>
+<li>Escalera: ap1.0 (cualquiera lo dice) → ap2.0 (IP spoofing) → ap3.0 (sniffing) → <strong>ap3.1 (replay: se reenvía el cifrado SIN descifrarlo)</strong> → <strong>ap4.0 el nonce</strong> → ap5.0 (clave pública, cae por MITM sin certificados). <strong>Cifrar no es autenticar.</strong></li>
+<li>HMAC = hash + secreto <strong>compartido</strong> → integridad + origen, pero <strong>SIN no repudio</strong> (los dos pueden generarlo). Solo la <strong>firma</strong> lo da. Ninguno de los dos <strong>cifra</strong>. "MAC" ambiguo: dirección vs Message Authentication Code.</li>
 <li>CA/X.509/cadena de confianza frenan el MITM. PGP = firmar y cifrar (web of trust).</li>
 <li>Capas: PGP (app) · TLS (transporte) · IPsec (red) · WPA2/3 (enlace).</li>
 <li>TLS: PMS → MS → 4 claves; nonces (entre sesiones) + secuencia (dentro); close-notify. 1.3 = 1-RTT + forward secrecy.</li>
 <li>IPsec: SA unidireccional (SPI); transporte vs túnel (VPN); AH vs ESP; IKE.</li>
-<li>WPA2: four-way handshake (nonces → clave de sesión + grupo). WPA3 corrige KRACK.</li>
-<li>Firewall: 3 objetivos; stateless/stateful/proxy; DMZ. IDS avisa / IPS bloquea (Snort; firma vs anomalía).</li>
+<li>WEP roto por <strong>IV de 24 bits</strong> (se repite) + CRC-32 como "integridad" (lineal, ajustable). WPA2/802.11i: 4 fases, <strong>four-way handshake</strong> (nonces → clave par-a-par + de grupo), AES-CCMP. <strong>WPA3</strong> corrige <strong>KRACK</strong> con <strong>SAE</strong> (mata el diccionario offline) + forward secrecy. Ojo: WPA protege <strong>solo hasta el AP</strong>, no reemplaza TLS.</li>
+<li>Firewall: 3 objetivos; <strong>stateless</strong> (sin memoria → un paquete forjado con puerto origen 80 + ACK <strong>pasa</strong>) vs <strong>stateful</strong> (tabla de conexiones → lo <strong>descarta</strong>) vs proxy. <strong>DMZ</strong> entre dos firewalls: si cae el web server queda <em>atrapado</em> ahí. IDS avisa (pasivo) / IPS bloquea (en línea) — Snort; firma vs anomalía.</li>
 </ul>`,
       },
     ],

@@ -123,7 +123,7 @@ import { RipDetail } from '../components/detail/rip-detail';
 
         <nav class="toc">
           @for (t of sec.topics; track $index; let i = $index) {
-            <a [href]="'#t' + i" class="toc-item">{{ i + 1 }}. {{ t.title }}</a>
+            <a [routerLink]="['/s', sec.slug]" [fragment]="'t' + i" class="toc-item">{{ i + 1 }}. {{ t.title }}</a>
           }
         </nav>
 

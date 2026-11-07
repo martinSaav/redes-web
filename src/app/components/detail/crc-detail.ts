@@ -136,7 +136,7 @@ interface DivRow {
     .badge.err { background: rgba(239,83,80,0.12); border: 1px solid #b23b3b; color: #ef9a9a; }
 
     .board { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
-    .divpanel { flex: 1; min-width: 340px; background: #10151f; border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+    .divpanel { flex: 1; min-width: min(340px, 100%); max-width: 100%; box-sizing: border-box; overflow-x: auto; background: #10151f; border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
     .dphead { font-size: 0.82rem; color: var(--text); margin-bottom: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .dphead b.d { color: #79c0ff; } .dphead b.g { color: #ffd54f; }
     .revctl { margin-left: auto; display: flex; align-items: center; gap: 4px; }

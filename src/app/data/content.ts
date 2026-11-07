@@ -53,6 +53,11 @@ export interface Topic {
     | 'fabric-detail'
     | 'bgppropag-detail'
     | 'ospf-detail'
+    | 'tcpscen-detail'
+    | 'congcost-detail'
+    | 'socket-detail'
+    | 'cdma-detail'
+    | 'dc-detail'
     | 'rip-detail'; // componentes a medida
 }
 
@@ -174,6 +179,7 @@ export const SECTIONS: Section[] = [
 <h4>Las herramientas</h4>
 <ul>
 <li><code>ping</code> — RTT y pérdida, con <strong>ICMP Echo</strong>. Si no responde, puede ser que el host esté caído… o que un <strong>firewall bloquee ICMP</strong>.</li>
+<li><code>httpping</code> — como ping, pero midiendo el tiempo de un <strong>pedido HTTP completo</strong> (conexión + request + respuesta). Sirve cuando ICMP está bloqueado y para ver la latencia que percibe una aplicación web, no solo la de la red.</li>
 <li><code>traceroute</code> — el camino salto a salto, mandando paquetes con <strong>TTL creciente</strong> y juntando los <strong>ICMP Time Exceeded</strong> que devuelve cada router.</li>
 <li><code>dig</code> / <code>nslookup</code> — consultas DNS: qué responde cada servidor, qué registros hay, cuánto TTL les queda.</li>
 <li><code>whois</code> — a quién le pertenece un dominio o un bloque de IPs (útil para ver la asignación RIR → ISP).</li>
@@ -251,6 +257,7 @@ export const SECTIONS: Section[] = [
       },
       {
         title: 'Procesos, sockets y puertos',
+        widget: 'socket-detail',
         html: `
 <p>Precisión importante: <strong>no se comunican "las máquinas", se comunican PROCESOS</strong>. Un host corre decenas de programas a la vez, y la red tiene que poder entregarle los datos <strong>al correcto</strong>.</p>
 <h4>El socket</h4>
@@ -277,7 +284,16 @@ export const SECTIONS: Section[] = [
 <li><strong>Apps elásticas</strong> (web, mail, transferencia de archivos): necesitan <strong>confiabilidad total</strong> —un archivo al que le faltan bytes no sirve— pero <strong>toleran demora</strong>: si tarda un segundo más, no pasa nada. → <strong>TCP</strong>.</li>
 <li><strong>Apps de tiempo real</strong> (VoIP, videollamadas, juegos): <strong>toleran pérdidas</strong> —un audio con algún hueco se entiende igual— pero <strong>odian la demora</strong>, y tienen un <strong>mínimo de throughput</strong> por debajo del cual no funcionan. → <strong>UDP</strong> con control propio.</li>
 </ul>
-<span class="warn">Lo que Internet <strong>NO</strong> garantiza: <strong>ni throughput ni timing</strong>. No existe un transporte estándar que prometa "te doy 2 Mbps" o "te entrego en menos de 50 ms" — eso requeriría reservas de recursos en la red, y el modelo <strong>best-effort</strong> de IP no las tiene. <strong>TCP</strong> te da confiabilidad y control de congestión; <strong>UDP</strong> casi nada (y precisamente por eso sirve para tiempo real); y la <strong>seguridad</strong> no la da ninguno de los dos: la agrega <strong>TLS</strong> por encima.</span>`,
+<span class="warn">Lo que Internet <strong>NO</strong> garantiza: <strong>ni throughput ni timing</strong>. No existe un transporte estándar que prometa "te doy 2 Mbps" o "te entrego en menos de 50 ms" — eso requeriría reservas de recursos en la red, y el modelo <strong>best-effort</strong> de IP no las tiene. <strong>TCP</strong> te da confiabilidad y control de congestión; <strong>UDP</strong> casi nada (y precisamente por eso sirve para tiempo real); y la <strong>seguridad</strong> no la da ninguno de los dos: la agrega <strong>TLS</strong> por encima.</span>
+<h4>Programar con sockets: UDP vs TCP (§2.7)</h4>
+<p>El libro implementa la misma aplicación dos veces: el cliente manda una frase y el servidor la devuelve en mayúsculas, en el <strong>puerto 12000</strong>. El diagrama ejecuta ese código línea por línea. Las diferencias que se preguntan:</p>
+<ul>
+<li><strong>Tipo de socket</strong>: <code>SOCK_DGRAM</code> para UDP, <code>SOCK_STREAM</code> para TCP. El cliente nunca elige su puerto: el sistema operativo le asigna uno <strong>efímero</strong>. El servidor sí: lo fija con <code>bind</code>, porque los clientes tienen que conocerlo.</li>
+<li><strong>¿Quién lleva la dirección destino?</strong> En UDP, <strong>cada</strong> <code>sendto</code> adjunta (IP, puerto) destino, y <code>recvfrom</code> devuelve el mensaje <strong>y la dirección del remitente</strong>, que el servidor necesita para contestar. En TCP, <code>connect</code> establece la conexión una vez y después <code>send</code>/<code>recv</code> <strong>no llevan dirección</strong>.</li>
+<li><strong>Cuántos sockets tiene el servidor</strong>. En UDP, <strong>uno solo</strong> para todos los clientes. En TCP, <strong>dos clases</strong>: el <strong>welcoming socket</strong> (el que hace <code>listen</code>, la puerta donde golpean los clientes nuevos) y un <strong>connectionSocket por cliente</strong>, que crea <code>accept()</code> cuando termina el handshake (Fig. 2.28).</li>
+<li><strong>El handshake</strong>: el <code>connect</code> del cliente dispara el three-way handshake contra el welcoming socket. Lo hace TCP en el sistema operativo; la aplicación no ve los SYN.</li>
+</ul>
+<span class="warn">La confusión clásica: creer que el servidor TCP atiende a todos por el welcoming socket. No: ese socket <strong>solo acepta conexiones</strong>. Los datos de cada cliente van por <strong>su propio connectionSocket</strong>. Todos comparten el puerto local 12000, y TCP los distingue por la <strong>cuádrupla</strong>.</span>`,
       },
       {
         title: 'HTTP: el protocolo de la Web',
@@ -605,6 +621,42 @@ export const SECTIONS: Section[] = [
 <span class="tip"><strong>¿Por qué 3 ACKs duplicados y no 1?</strong> Porque la red puede <strong>reordenar</strong> paquetes: un ACK duplicado suelto puede significar simplemente que un segmento tomó otro camino y llegó tarde, no que se perdió. Esperar <strong>tres</strong> es el compromiso entre reaccionar rápido y no retransmitir de gusto ante un simple reordenamiento.</span>`,
       },
       {
+        title: 'TCP: los escenarios de retransmisión (Figs. 3.34–3.37)',
+        widget: 'tcpscen-detail',
+        html: `
+<p>El cronograma lo nombra literal: <strong>"distintos escenarios"</strong>. Son las cuatro figuras del libro, y se preguntan dibujando el diagrama de secuencia. En todas, el emisor sigue tres reglas del pseudocódigo de la Fig. 3.33:</p>
+<ul>
+<li><strong>Datos de la aplicación</strong> → arma el segmento con <code>NextSeqNum</code>, lo manda, y si el timer estaba apagado lo arranca.</li>
+<li><strong>Timeout</strong> → retransmite <strong>solo el segmento más viejo sin confirmar</strong> (el de <code>SendBase</code>) y reinicia el timer.</li>
+<li><strong>Llega un ACK con valor y</strong> → si <code>y &gt; SendBase</code>, avanza <code>SendBase = y</code> (ACK acumulativo) y, si queda algo sin confirmar, rearranca el timer.</li>
+</ul>
+<p>Hay <strong>un solo timer</strong>, asociado al segmento más viejo sin confirmar — no uno por segmento como en Selective Repeat.</p>
+
+<h4>1 · ACK perdido (Fig. 3.34)</h4>
+<p>A manda <strong>Seq=92, 8 bytes</strong>. B lo recibe y contesta <strong>ACK=100</strong>, que <strong>se pierde</strong>. A no recibe nada, <strong>vence el timer</strong> y retransmite Seq=92. B ya tenía esos bytes: por el <strong>número de secuencia</strong> detecta el duplicado, <strong>descarta los datos</strong> y vuelve a mandar ACK=100. La lección: los números de secuencia permiten retransmitir <strong>sin duplicar datos en la aplicación</strong>.</p>
+
+<h4>2 · Timeout prematuro (Fig. 3.35)</h4>
+<p>A manda Seq=92 (8 bytes) y Seq=100 (20 bytes). Los dos llegan bien y B manda ACK=100 y ACK=120, pero <strong>vienen demorados</strong> y el timer de Seq=92 vence antes. A retransmite <strong>solo el 92</strong> y reinicia el timer. Llegan los ACKs, <strong>SendBase = 120</strong>, y como ACK=120 llegó antes del nuevo timeout, <strong>el segmento 100 nunca se retransmite</strong>. No se perdió nada: el problema fue un timeout corto.</p>
+
+<h4>3 · El ACK acumulativo evita la retransmisión (Fig. 3.36)</h4>
+<p>Mismo arranque, pero ahora <strong>ACK=100 se pierde</strong> y <strong>ACK=120 llega antes del timeout</strong>. Como ACK=120 significa "recibí <em>todo</em> hasta el byte 119", A sabe que los dos segmentos llegaron y <strong>no retransmite ninguno</strong>. Un ACK posterior tapa la pérdida de uno anterior.</p>
+
+<h4>Duplicar el intervalo de timeout</h4>
+<p>Cada vez que vence el timer, TCP retransmite y fija el próximo intervalo en el <strong>doble del anterior</strong>, en lugar de recalcularlo con EstimatedRTT y DevRTT. El ejemplo del libro: <strong>0,75 s → 1,5 s → 3,0 s</strong>, crecimiento exponencial. En cuanto vuelve a llegar un ACK o datos nuevos de la aplicación, el intervalo se vuelve a calcular con la fórmula. ¿Por qué duplicar? Porque un timeout suele indicar <strong>congestión</strong>, y retransmitir cada vez más espaciado es una forma limitada de control de congestión — la misma idea que el backoff de Ethernet.</p>
+
+<h4>4 · Fast retransmit (Fig. 3.37)</h4>
+<p>El problema del timeout es que <strong>es largo</strong>. Pero muchas veces la pérdida se puede detectar antes, con los <strong>ACKs duplicados</strong>. A manda cinco segmentos (92, 100, 120, 135, 141) y <strong>se pierde el 100</strong>. B recibe el 92 (ack=100) y después 120, 135 y 141 <strong>fuera de orden</strong>: como TCP no tiene NAK, por cada uno <strong>re-ACKea el último byte en orden</strong> → tres ack=100 duplicados. Al tercero, A <strong>retransmite el 100 de inmediato</strong>, mucho antes del timeout. B tapa el hueco y contesta <strong>ack=157</strong>: un solo ACK acumulativo confirma los cinco segmentos.</p>
+
+<h4>Tabla 3.2: cuándo genera ACKs el receptor (RFC 5681)</h4>
+<ul>
+<li>Llega un segmento <strong>en orden</strong> y todo lo anterior ya fue confirmado → <strong>ACK demorado</strong>: espera hasta <strong>500 ms</strong> por si llega otro, y si no, ACKea.</li>
+<li>Llega en orden y <strong>hay otro esperando su ACK</strong> → manda <strong>ya</strong> un único ACK acumulativo por los dos.</li>
+<li>Llega <strong>fuera de orden</strong> (hueco) → manda <strong>ya</strong> un <strong>ACK duplicado</strong> con el byte esperado.</li>
+<li>Llega un segmento que <strong>tapa total o parcialmente el hueco</strong> → manda <strong>ya</strong> un ACK, si el segmento empieza en el borde inferior del hueco.</li>
+</ul>
+<span class="tip">Si te piden comparar: TCP se parece a <strong>Go-Back-N</strong> en el ACK acumulativo y el timer único, pero a <strong>Selective Repeat</strong> en que guarda los segmentos fuera de orden y retransmite <strong>uno solo</strong>, no toda la ventana. Por eso en la Fig. 3.37 se reenvían 20 bytes y no los cuatro segmentos posteriores.</span>`,
+      },
+      {
         title: 'Control de flujo (rwnd)',
         widget: 'flowctl-detail',
         html: `
@@ -620,18 +672,90 @@ export const SECTIONS: Section[] = [
 <p>Detalle histórico: UDP <strong>no tiene control de flujo</strong> — puede desbordar el buffer del receptor sin enterarse. Es parte del mismo paquete de "UDP no hace nada por vos".</p>`,
       },
       {
+        title: 'Causas y costos de la congestión (los 3 escenarios)',
+        widget: 'congcost-detail',
+        html: `
+<p>Antes de ver <em>cómo</em> TCP controla la congestión, el libro (§3.6.1) se pregunta <strong>por qué la congestión es mala</strong> y cuánto cuesta. Lo hace con tres escenarios de complejidad creciente, y cada uno destapa un costo nuevo. La idea de fondo: retransmitir <strong>trata el síntoma</strong> (un paquete perdido), pero no la <strong>causa</strong>: demasiadas fuentes mandando demasiado rápido.</p>
+
+<h4>Escenario 1: dos emisores, un router con buffer infinito (Figs. 3.43–3.44)</h4>
+<p>A y B mandan a tasa <strong>λ<sub>in</sub></strong> y comparten un enlace de salida de capacidad <strong>R</strong>. No hay retransmisiones ni pérdidas: el buffer es infinito.</p>
+<ul>
+<li><strong>Throughput</strong>: hasta R/2, todo lo que se manda llega (λ<sub>out</sub> = λ<sub>in</sub>). Por encima de R/2 se <strong>clava en R/2</strong>, porque el enlace se reparte entre las dos conexiones. Mandar más rápido no aumenta lo que llega.</li>
+<li><strong>Demora</strong>: a medida que λ<sub>in</sub> se acerca a R/2, la demora <strong>crece sin cota</strong>. Pasado R/2 la cola crece para siempre y la demora es infinita.</li>
+</ul>
+<p><strong>Costo 1</strong>: aun en este caso idealizado, operar cerca de la capacidad del enlace produce <strong>demoras de cola enormes</strong>. Lo que es óptimo para el throughput es pésimo para la demora.</p>
+
+<h4>Escenario 2: buffer finito y retransmisiones (Figs. 3.45–3.46)</h4>
+<p>Ahora el buffer es <strong>finito</strong>, así que hay descartes, y las conexiones son confiables, así que los descartados se retransmiten. Hay que distinguir dos tasas: <strong>λ<sub>in</sub></strong> (datos originales que manda la aplicación) y <strong>λ'<sub>in</sub></strong> (originales + retransmisiones que entran a la red, la <strong>carga ofrecida</strong>).</p>
+<ul>
+<li><strong>(a) Caso ideal</strong>: A sabe mágicamente cuándo hay lugar en el buffer y nunca pierde. λ'<sub>in</sub> = λ<sub>in</sub> y el throughput es perfecto.</li>
+<li><strong>(b) Retransmite solo lo realmente perdido</strong>: con carga ofrecida R/2, al receptor llegan apenas <strong>R/3</strong> de datos útiles (lo que se suele llamar <strong>goodput</strong>: el throughput descontando las retransmisiones). De los 0,5R enviados, <strong>0,333R son datos originales y 0,166R retransmisiones</strong>. <strong>Costo 2</strong>: el emisor tiene que retransmitir para compensar lo que se descarta por buffer lleno.</li>
+<li><strong>(c) Además hay timeouts prematuros</strong>: se retransmiten paquetes que solo estaban demorados, y el receptor recibe copias que descarta. Si cada paquete viaja en promedio dos veces, el throughput tiende a <strong>R/4</strong>. <strong>Costo 3</strong>: el router gasta ancho de banda en <strong>copias innecesarias</strong>.</li>
+</ul>
+
+<h4>Escenario 3: cuatro emisores y caminos multisalto (Figs. 3.47–3.48)</h4>
+<p>Cuatro hosts en un anillo de routers, cada conexión atraviesa <strong>dos saltos</strong> y las conexiones se solapan: la A→C pasa por R1 y R2, y en R2 compite con la B→D.</p>
+<ul>
+<li>Con <strong>poca carga</strong> casi no hay desbordes: más carga, más throughput.</li>
+<li>Con <strong>mucha carga</strong>, el tráfico A→C llega a R2 como máximo a tasa R (lo limita el enlace R1→R2), mientras que el B→D puede llegar mucho más rápido. En R2 los dos compiten por el buffer, y el A→C pierde cada vez más.</li>
+<li>En el límite, el throughput de A→C <strong>tiende a CERO</strong>: es el <strong>colapso por congestión</strong>. La curva sube, hace un pico y <strong>se desploma</strong>.</li>
+</ul>
+<p><strong>Costo 4</strong>: cuando un paquete se descarta en el segundo salto, <strong>toda la capacidad que gastaron los enlaces anteriores</strong> para llevarlo hasta ahí se desperdicia. Hubiera dado lo mismo descartarlo en el primer router.</p>
+
+<span class="tip">El resumen que se pide: <strong>(1)</strong> demoras de cola enormes cerca de la capacidad, <strong>(2)</strong> retransmisiones para compensar descartes, <strong>(3)</strong> retransmisiones innecesarias que ocupan enlace, <strong>(4)</strong> capacidad aguas arriba desperdiciada cuando el paquete muere más adelante. El escenario 3 es el que justifica que exista el control de congestión: sin él, <strong>agregar carga puede bajar el throughput total</strong>.</span>
+
+<h4>Dos enfoques para controlar la congestión (§3.6.2)</h4>
+<ul>
+<li><strong>End-to-end</strong>: la red no avisa nada y los extremos <strong>infieren</strong> la congestión por las pérdidas y la demora. Es el enfoque clásico de TCP.</li>
+<li><strong>Asistido por la red</strong>: los routers le avisan al emisor, con un bit o una tasa explícita. Es lo que hace <strong>ECN</strong>, y lo que hacía ATM ABR.</li>
+</ul>`,
+      },
+      {
         title: 'Control de congestión: slow start, AIMD, Tahoe vs Reno',
         widget: 'cwnd',
         html: `
-<p>Acá el problema es <strong>la red</strong> (buffers de routers). El emisor limita: <span class="formula">en vuelo ≤ min(cwnd, rwnd)</span>, banda ≈ cwnd/RTT. Filosofía: <strong>sondear</strong> — subir mientras llegan ACKs, bajar ante pérdidas.</p>
+<p>Acá el problema no es el receptor sino <strong>la RED</strong>: los buffers de los routers intermedios. Y hay una dificultad de fondo: <strong>la red no le avisa nada al emisor</strong>. No existe un mensaje "che, estoy congestionado" — el emisor tiene que <strong>deducirlo solo</strong>, y la única pista que tiene es que <strong>se pierden paquetes</strong>.</p>
+<p>El emisor mantiene una <strong>ventana de congestión (cwnd)</strong> y limita: <span class="formula">bytes en vuelo ≤ min(cwnd, rwnd)</span>, con una tasa aproximada de <span class="formula">cwnd / RTT</span>. La filosofía es <strong>sondear</strong>: subir mientras los ACKs sigan llegando, bajar apenas se pierde algo.</p>
+
+<h4>Los dos estados</h4>
 <ul>
-<li><strong>Slow start</strong>: cwnd = 1 MSS y se <strong>duplica cada RTT</strong> (exponencial) hasta ssthresh o pérdida.</li>
-<li><strong>Congestion avoidance</strong>: +1 MSS por RTT (lineal, additive increase).</li>
-<li><strong>Tahoe</strong>: TODA pérdida (timeout o 3 dup ACK) → ssthresh = cwnd/2, <strong>cwnd = 1</strong>, slow start.</li>
-<li><strong>Reno</strong>: distingue la señal. <strong>3 dup ACK</strong> = congestión leve (los ACKs fluyen) → cwnd = mitad, <strong>fast recovery</strong>. <strong>Timeout</strong> = grave → cwnd = 1.</li>
+<li><strong>Slow start</strong> — arranca en <strong>cwnd = 1 MSS</strong> y la <strong>duplica cada RTT</strong>: crecimiento <strong>EXPONENCIAL</strong>. Dura hasta llegar a <strong>ssthresh</strong> o hasta que se pierda un paquete.</li>
+<li><strong>Congestion avoidance</strong> — <strong>+1 MSS por RTT</strong>: crecimiento <strong>LINEAL</strong> (<em>additive increase</em>). Se entra acá cuando cwnd alcanza ssthresh.</li>
 </ul>
-<p>Resultado: <strong>AIMD</strong> (additive increase, multiplicative decrease) = el diente de sierra. Es <strong>justo</strong>: dos flujos convergen al reparto igualitario (bajada a la mitad conserva proporción, subida en diagonal 45°). Salvedades: RTT chico gana, UDP no participa, y abrir conexiones paralelas "hace trampa".</p>
-<p><strong>ECN</strong>: el router MARCA el paquete (2 bits IP) en vez de descartar; el receptor prende ECE en sus ACKs; el emisor reduce como si hubiera perdido (y avisa con CWR). Congestión sin pérdidas ni retransmisiones.</p>`,
+<span class="warn">Trampa de nombre: <strong>"slow start" NO significa que crezca lento</strong> — crece exponencialmente, es la fase más agresiva. Lo "lento" es el <strong>punto de partida</strong>: arranca desde 1 MSS en vez de mandar de golpe una ventana grande.</span>
+
+<h4>Qué es exactamente ssthresh</h4>
+<p><strong>ssthresh</strong> (<em>slow start threshold</em>) es la frontera entre las dos fases: mientras <span class="formula">cwnd &lt; ssthresh</span> se crece exponencial; al llegar, se pasa a lineal. Es la estimación de "hasta acá me parece seguro ir rápido".</p>
+<p><strong>Y no es un valor fijo</strong>: se <strong>recalcula en CADA pérdida</strong> como <span class="formula">ssthresh = cwnd / 2</span>, o sea la mitad de la ventana <em>que había en el momento de perder</em>. Al abrir la conexión se inicializa <strong>muy alto</strong> (prácticamente infinito), porque el emisor todavía no tiene ni idea de cuánto aguanta la red.</p>
+
+<h4>¿Y si se pierde un paquete ANTES de llegar a ssthresh?</h4>
+<p>Es decir, <strong>durante el slow start</strong>. Es un caso muy común — de hecho, en la <strong>primera</strong> conexión es casi siempre lo que pasa, porque ssthresh arranca altísimo y nunca se alcanza: <strong>el slow start termina por una pérdida, no por llegar al umbral</strong>.</p>
+<p>Qué ocurre, paso a paso:</p>
+<ol>
+<li>Se detecta la pérdida (por <strong>timeout</strong> o por <strong>3 ACKs duplicados</strong>).</li>
+<li><strong>ssthresh = cwnd / 2</strong>, usando la cwnd <em>del momento de la pérdida</em>. No importa que no hubieras llegado al ssthresh anterior: el umbral se <strong>redefine igual</strong>, y queda <strong>MÁS BAJO</strong> que antes. La red te acaba de decir "hasta acá no llegabas".</li>
+<li>Después, según la versión:
+<ul>
+<li><strong>Tahoe</strong>: <strong>cwnd = 1</strong> y vuelve a slow start — pero ahora, con el ssthresh nuevo (más bajo), <strong>saldrá de la fase exponencial mucho antes</strong>.</li>
+<li><strong>Reno</strong>: si fue por <strong>3 ACKs duplicados</strong>, hace <strong>fast recovery</strong>: <strong>cwnd = ssthresh nuevo</strong> y pasa <strong>DIRECTO a congestion avoidance</strong>, <em>sin volver a 1 ni rehacer el slow start</em>. Si fue por <strong>timeout</strong>, sí va a cwnd = 1 y slow start.</li>
+</ul>
+</li>
+</ol>
+<span class="tip">La conclusión que conviene decir: en ese ciclo <strong>nunca se llegó a congestion avoidance</strong> — se perdió estando todavía en la fase exponencial. Y el efecto neto es que <strong>ssthresh "aprende" y baja</strong>: cada pérdida ajusta el umbral hacia abajo, acercándolo al punto real donde la red se satura. Ese ajuste continuo es el mecanismo por el que TCP <strong>encuentra la capacidad disponible sin conocerla de antemano</strong>.</span>
+
+<h4>Tahoe vs Reno</h4>
+<ul>
+<li><strong>Tahoe</strong>: <strong>TODA</strong> pérdida (timeout o 3 dup ACK) → ssthresh = cwnd/2, <strong>cwnd = 1</strong>, slow start. No distingue la gravedad.</li>
+<li><strong>Reno</strong>: <strong>distingue la señal</strong>. <strong>3 ACKs duplicados</strong> = congestión <em>leve</em>, porque si llegan ACKs es que <strong>los demás segmentos SÍ están pasando</strong> → cwnd = mitad y <strong>fast recovery</strong>. <strong>Timeout</strong> = congestión <em>grave</em> (dejó de llegar todo) → cwnd = 1.</li>
+</ul>
+<p>Por eso en el gráfico Tahoe cae siempre a 1 y Reno solo cae a la mitad cuando la pérdida fue por ACKs duplicados. <strong>Ojo con la coincidencia numérica</strong>: si tras una pérdida cwnd vuelve a 1, el salto 1 → 2 es <strong>slow start (×2)</strong>, aunque numéricamente parezca un +1 de congestion avoidance.</p>
+
+<h4>AIMD y equidad</h4>
+<p>El resultado es <strong>AIMD</strong> (<em>additive increase, multiplicative decrease</em>): el <strong>diente de sierra</strong> característico. Se puede demostrar que es <strong>justo</strong>: dos flujos que comparten un cuello de botella <strong>convergen al reparto igualitario</strong> — la bajada a la mitad conserva la proporción entre ellos, y la subida aditiva los acerca en diagonal a 45°.</p>
+<p><strong>Salvedades</strong>: el flujo con <strong>RTT más chico</strong> crece más rápido y se queda con más banda; <strong>UDP no participa</strong> del reparto; y abrir <strong>muchas conexiones paralelas</strong> es una forma de "hacer trampa" (cada una recibe su parte).</p>
+
+<h4>ECN</h4>
+<p>La alternativa a esperar la pérdida: el <strong>router MARCA</strong> el paquete (2 bits en el header IP) en vez de descartarlo, el <strong>receptor</strong> prende el flag <strong>ECE</strong> en sus ACKs, y el <strong>emisor</strong> reduce la ventana como si hubiera perdido (y confirma con <strong>CWR</strong>). Se consigue <strong>señalar congestión sin pérdidas ni retransmisiones</strong> — la red avisa <em>antes</em> de tener que tirar nada.</p>`,
       },
       {
         title: 'CUBIC y BBR (8ª edición)',
@@ -1112,7 +1236,49 @@ export const SECTIONS: Section[] = [
 </ol>
 <p>Lo que en el modelo tradicional requiere que <strong>mil routers floodeen LSAs y negocien</strong> hasta converger, acá lo hace <strong>un programa que ya tiene toda la información</strong>.</p>
 <span class="tip">La conexión con el resto del capítulo: SDN es la <strong>separación data plane / control plane llevada al extremo</strong>. El "procesador de ruteo" que veíamos <em>adentro</em> del router se saca <strong>afuera del equipo</strong>. Y el <strong>generalized forwarding</strong> (match + action) es justamente el modelo de datos que hace posible que la misma caja sea router, switch, firewall o NAT según las reglas que le instalen.</span>
+<p><strong>En la práctica (TP2)</strong>: <strong>mininet</strong> emula una red completa (hosts, switches OpenFlow y enlaces) dentro de una sola máquina, y <strong>POX</strong> es un controlador SDN escrito en Python. Con los dos se programa en una tarde lo que en una red real llevaría hardware: el controlador recibe los <em>packet-in</em> de los switches emulados e instala reglas con <em>flow-mod</em>, exactamente el ciclo del diagrama.</p>
 <p><strong>Controladores</strong> reales: <strong>OpenDaylight</strong> y <strong>ONOS</strong>. <strong>Las tensiones</strong>, que conviene mencionar: el controlador es un <strong>punto crítico</strong> (hay que replicarlo, y ahí aparecen los problemas de consistencia entre réplicas), la <strong>latencia del lazo</strong> switch↔controlador importa (por eso lo que se puede se resuelve con reglas preinstaladas y no consultando cada vez), y a mayor escala hay que <strong>federar varios controladores</strong> — con lo que reaparece, en otro nivel, el problema distribuido que se quería evitar.</p>`,
+      },
+      {
+        title: 'Gestión de red: SNMP/MIB y NETCONF/YANG (§5.7)',
+        html: `
+<p>Una red de una organización tiene cientos o miles de equipos, enlaces y protocolos interactuando. La <strong>gestión de red</strong> es todo lo que permite <strong>monitorear, probar, consultar, configurar, analizar, evaluar y controlar</strong> esos recursos para cumplir los requisitos de rendimiento y calidad de servicio a un costo razonable.</p>
+<h4>Los componentes (Fig. 5.20)</h4>
+<ul>
+<li><strong>Servidor de gestión</strong> (managing server): una aplicación, con humanos en el circuito, que corre en un centro de operaciones de red (<strong>NOC</strong>). Recolecta, procesa y analiza la información, y desde ahí se configura y controla todo. Guarda su propia copia de los datos de cada equipo y de la red completa (por ejemplo, la topología).</li>
+<li><strong>Dispositivo gestionado</strong>: router, switch, host, middlebox, módem… cualquier equipo con componentes y parámetros configurables.</li>
+<li><strong>Datos</strong> del dispositivo, de tres tipos:
+<ul>
+<li><strong>de configuración</strong>: lo que el administrador fija a mano (la IP de una interfaz, su velocidad);</li>
+<li><strong>operacionales</strong>: lo que el equipo aprende mientras funciona (la lista de vecinos OSPF);</li>
+<li><strong>estadísticas</strong>: contadores e indicadores (paquetes descartados en una interfaz, velocidad del ventilador).</li>
+</ul></li>
+<li><strong>Agente</strong>: un proceso en el dispositivo que se comunica con el servidor y ejecuta acciones locales bajo sus órdenes.</li>
+<li><strong>Protocolo de gestión</strong>: el que corre entre el servidor y los agentes. Ojo con la sutileza que marca el libro: el protocolo <strong>no gestiona la red</strong> por sí mismo; da las herramientas para que el administrador la gestione.</li>
+</ul>
+<h4>Tres formas de gestionar</h4>
+<ul>
+<li><strong>CLI</strong>: comandos directos en el equipo, por consola, Telnet o SSH. Son específicos de cada fabricante, propensos a errores y difíciles de automatizar a gran escala. (La página web de configuración del router de tu casa es la versión amigable de esto, y tampoco escala.)</li>
+<li><strong>SNMP/MIB</strong>: consultar o modificar los objetos de la <strong>MIB</strong> del equipo con <strong>SNMP</strong>. En la práctica se usa sobre todo para <strong>monitorear</strong>, y para configurar se termina usando CLI. Las dos gestionan los equipos <strong>de a uno</strong>.</li>
+<li><strong>NETCONF/YANG</strong>: el enfoque moderno, con una visión <strong>de toda la red</strong> y foco en la <strong>configuración</strong>: restricciones de correctitud y operaciones <strong>atómicas</strong> sobre varios equipos a la vez.</li>
+</ul>
+<h4>SNMP y la MIB</h4>
+<p><strong>SNMPv3</strong> es un protocolo de <strong>capa de aplicación</strong> que va casi siempre sobre <strong>UDP</strong>. Se usa de dos maneras: en modo <strong>pedido–respuesta</strong> (el servidor consulta o modifica objetos de la MIB) y con <strong>traps</strong>, mensajes que el agente manda <strong>por su cuenta</strong> ante un evento excepcional (un enlace que se cae, un reinicio, una falla de autenticación). Los tipos de PDU (Tabla 5.2):</p>
+<ul>
+<li><strong>GetRequest</strong>, <strong>GetNextRequest</strong> (recorrer una lista o tabla), <strong>GetBulkRequest</strong> (un bloque grande de una vez): del servidor al agente, para leer valores.</li>
+<li><strong>SetRequest</strong>: del servidor al agente, para escribir valores.</li>
+<li><strong>InformRequest</strong>: de un servidor de gestión a otro.</li>
+<li><strong>Response</strong>: la respuesta a cualquiera de los pedidos.</li>
+<li><strong>SNMPv2-Trap</strong>: del agente al servidor, sin que nadie lo pida, y no requiere respuesta.</li>
+</ul>
+<p>Como va sobre UDP, puede perderse el pedido o la respuesta. El campo <strong>Request ID</strong> permite detectarlo, pero el estándar <strong>no define</strong> cómo retransmitir: solo pide que el servidor actúe "de forma responsable". SNMPv3 es básicamente SNMPv2 con <strong>seguridad y administración</strong>; la falta de seguridad en las versiones anteriores es la razón por la que SNMP se usó casi solo para monitorear y casi nunca con SetRequest.</p>
+<p>La <strong>MIB</strong> es la colección de <strong>objetos</strong> que describen el estado de un equipo: contadores (datagramas IP descartados por errores en el header), estado (si un equipo funciona bien), información de protocolos. Se definen con el lenguaje <strong>SMI</strong> y se agrupan en <strong>módulos MIB</strong>; hay más de 400 en RFCs más los privados de cada fabricante. Ejemplo del libro: <code>ipSystemStatsInDelivers</code>, un contador de 32 bits de solo lectura con la cantidad de datagramas IP entregados a la capa de arriba.</p>
+<h4>NETCONF y YANG</h4>
+<ul>
+<li><strong>YANG</strong> es un <strong>lenguaje de modelado de datos</strong>: describe la configuración y los datos operacionales, incluyendo restricciones.</li>
+<li><strong>NETCONF</strong> es el <strong>protocolo</strong> que transporta las acciones y datos compatibles con YANG. Usa <strong>RPC</strong> con mensajes en <strong>XML</strong>, sobre una sesión segura y orientada a conexión (<strong>TLS sobre TCP</strong>). Una sesión: el servidor abre la conexión, intercambian <code>&lt;hello&gt;</code> con sus capacidades, siguen pares <code>&lt;rpc&gt;</code>/<code>&lt;rpc-reply&gt;</code> para leer y modificar configuraciones, el equipo puede mandar <code>&lt;notification&gt;</code>, y se cierra con <code>&lt;close-session&gt;</code>.</li>
+</ul>
+<span class="tip">La comparación que se pregunta: <strong>SNMP</strong> va sobre <strong>UDP</strong>, es bueno para <strong>monitorear</strong> y trabaja <strong>equipo por equipo</strong>. <strong>NETCONF</strong> va sobre <strong>TLS/TCP</strong>, apunta a <strong>configurar</strong> y ofrece operaciones <strong>atómicas sobre varios equipos</strong>. Y la conexión con SDN: el controlador centralizado es, entre otras cosas, una forma moderna de hacer gestión de red (OpenDaylight habla NETCONF/YANG).</span>`,
       },
     ],
   },
@@ -1315,6 +1481,38 @@ export const SECTIONS: Section[] = [
 </ul>
 <span class="tip">La idea de fondo: MPLS le devuelve a IP algo de <strong>orientado a conexión</strong> (caminos establecidos de antemano, como los circuitos virtuales) sin perder la flexibilidad de IP. Es el mismo espíritu que después retoma <strong>SDN</strong>: querer decidir el camino, no solo el destino.</span>`,
       },
+      {
+        title: 'Redes de datacenter (§6.6)',
+        widget: 'dc-detail',
+        html: `
+<p>Google, Microsoft, Amazon o Alibaba tienen datacenters con <strong>decenas o cientos de miles de hosts</strong>, conectados entre sí por una red interna propia. Sirven para tres cosas: <strong>entregar contenido</strong> (web, búsquedas, mail, video), <strong>computar en paralelo</strong> (por ejemplo, indexar la web) y vender <strong>cloud computing</strong> a otras empresas.</p>
+<h4>Los componentes</h4>
+<ul>
+<li><strong>Hosts (blades)</strong>: servidores comunes, apilados en <strong>racks</strong> de 20 a 40.</li>
+<li><strong>Switch ToR</strong> (Top of Rack): arriba de cada rack, conecta sus hosts entre sí y con el resto. Hoy los hosts se conectan al ToR a 40 o 100 Gbps.</li>
+<li><strong>Border routers</strong>: conectan el datacenter a Internet. La red interna lleva dos tipos de tráfico: de clientes externos hacia los hosts, y <strong>entre hosts internos</strong>.</li>
+<li><strong>Load balancer</strong>: cada aplicación tiene una IP pública, y el balanceador reparte los pedidos entre los hosts según su carga. Se lo llama <strong>"switch de capa 4"</strong> porque decide mirando también el <strong>puerto</strong> destino. Además hace algo parecido a <strong>NAT</strong>: traduce la IP pública a la interna del host elegido, y así los clientes nunca hablan directo con los hosts ni ven la estructura interna.</li>
+</ul>
+<p>En cuanto a costos (cifras de 2009 del libro, para un datacenter de 100.000 hosts): ~45% hosts, ~25% infraestructura eléctrica y de refrigeración, ~15% electricidad y ~15% red. La red no es lo más caro, pero es <strong>la clave para bajar el costo total</strong> y subir el rendimiento.</p>
+<h4>Arquitectura jerárquica (Fig. 6.30) y su problema</h4>
+<p>Para llegar a cientos de miles de hosts se arma una <strong>jerarquía</strong>: border router → access routers → switches tier-1 → tier-2 → ToR → racks. Con equipos y enlaces redundantes por disponibilidad, y cada subred partida en <strong>VLANs</strong> de unos cientos de hosts para que el broadcast de ARP no inunde todo.</p>
+<p><strong>El problema: poca capacidad entre hosts de racks distintos.</strong> Dos hosts del mismo rack hablan a 10 Gbps. Pero si 10 hosts de cada uno de los racks 1–4 le mandan a los racks 5–8, los <strong>40 flujos comparten el enlace A→B de 100 Gbps</strong>: <span class="formula">100 Gbps / 40 = 2,5 Gbps</span> por flujo, muy por debajo de los 10 de la placa. Y empeora cuanto más arriba en la jerarquía tenga que subir el tráfico.</p>
+<p>Tres formas de atacarlo:</p>
+<ul>
+<li>Poner switches y routers más rápidos: funciona, pero es <strong>carísimo</strong>.</li>
+<li>Ubicar servicios y datos relacionados <strong>cerca</strong> (mismo rack): ayuda, pero los datacenters necesitan <strong>flexibilidad</strong> para ubicar las máquinas virtuales donde haya capacidad.</li>
+<li><strong>Más conectividad entre niveles</strong> (Fig. 6.31): cada ToR conectado a varios tier-2, y cada tier-2 a varios tier-1. Aparecen <strong>muchos caminos disjuntos</strong>: más capacidad agregada y más confiabilidad.</li>
+</ul>
+<h4>Multicamino, Clos y tendencias</h4>
+<p>Con tantos caminos, el ruteo multicamino pasa a ser lo normal. El esquema más simple es <strong>ECMP</strong> (Equal Cost Multi Path): elegir al azar el próximo salto entre los caminos de igual costo. Estas redes de muchos switches chicos en etapas se llaman <strong>redes de Clos</strong> (Charles Clos las estudió para telefonía en 1953): cumplen la función de <strong>un crossbar gigante</strong> que conecta a cualquiera con cualquiera, pero con varios caminos posibles.</p>
+<ul>
+<li><strong>Control centralizado tipo SDN</strong>: como hay un solo dueño, tiene sentido un plano de control lógicamente centralizado y switches simples en el plano de datos, con configuración automatizada.</li>
+<li><strong>Virtualización</strong>: las máquinas virtuales migran entre servidores de racks distintos sin cortar sus conexiones. Para eso se trata el datacenter como <strong>una única red plana de capa 2</strong>, y ARP se reemplaza por una consulta a un <strong>directorio</strong> (estilo DNS) en vez de un broadcast.</li>
+<li><strong>Restricciones físicas</strong>: enlaces de 40–100 Gbps con demoras de <strong>microsegundos</strong> y buffers chicos. TCP clásico no anda bien ahí: perder y esperar un timeout es carísimo. Aparecen variantes de TCP propias de datacenter y RDMA sobre Ethernet.</li>
+<li><strong>Modularidad</strong>: datacenters armados en <strong>contenedores</strong> de 12 m con miles de hosts, que se reemplazan enteros cuando se degradan; y las <strong>availability zones</strong> de Amazon, datacenters replicados en edificios cercanos.</li>
+</ul>
+<span class="tip">La conexión con el resto de la materia: la red de un datacenter es un <strong>crossbar gigante hecho de switches chicos</strong> (igual que el fabric de un router, pero a escala de edificio), se controla con <strong>SDN</strong>, balancea con algo parecido a <strong>NAT</strong>, y obliga a repensar el <strong>control de congestión</strong> porque las demoras son 1000 veces más chicas que en Internet.</span>`,
+      },
     ],
   },
 
@@ -1341,6 +1539,20 @@ export const SECTIONS: Section[] = [
 </ul>
 <p><strong>Modulación adaptativa</strong> (lo que muestra el diagrama): con SNR alta el emisor mete <strong>muchos bits por símbolo</strong> (64-QAM, tasa alta); al bajar la SNR cae a modulaciones más <strong>robustas y lentas</strong> (16-QAM, BPSK) para no dispararse la BER. Más lejos ⇒ menos velocidad.</p>
 <span class="warn">Consecuencia central: en wireless <strong>no se puede hacer CSMA/CD</strong>. Tu propia señal (fortísima) tapa la del otro, y por el <strong>terminal oculto</strong> podés ni enterarte de la colisión. Por eso WiFi EVITA (CA) + ACK en vez de DETECTAR (CD) — eso se ve en el diagrama de más abajo.</span>`,
+      },
+      {
+        title: 'CDMA: compartir el canal por códigos',
+        widget: 'cdma-detail',
+        html: `
+<p><strong>CDMA</strong> (Code Division Multiple Access) es un protocolo de <strong>particionado del canal</strong>, como TDMA y FDMA. Pero en vez de repartir el <em>tiempo</em> o la <em>frecuencia</em>, reparte el <strong>espacio de códigos</strong>: todos transmiten <strong>a la vez y en la misma banda</strong>, y cada emisor usa un código distinto. Se usó mucho en redes celulares (3G) y en LANs inalámbricas.</p>
+<h4>Codificar (ec. 7.1)</h4>
+<p>Cada bit de datos <strong>d<sub>i</sub></strong> (representando el 0 como <strong>−1</strong>) se multiplica por un <strong>código de M valores ±1</strong>, los <em>chips</em>. El código cambia mucho más rápido que los datos: es la <strong>tasa de chipping</strong>. En el ejemplo del libro M = 8 y el código es (1, 1, 1, −1, 1, −1, −1, −1):</p>
+<p><span class="formula">Z<sub>i,m</sub> = d<sub>i</sub> · c<sub>m</sub></span> &nbsp; — el chip m del bit i.</p>
+<h4>Decodificar (ec. 7.2)</h4>
+<p>El receptor multiplica lo que recibe por <strong>el mismo código</strong>, suma los M productos y divide por M: <span class="formula">d<sub>i</sub> = (1/M) · Σ<sub>m</sub> Z<sub>i,m</sub> · c<sub>m</sub></span>. Como c<sub>m</sub> · c<sub>m</sub> = 1 en cada chip, la suma da exactamente <strong>±M</strong> y se recupera el bit.</p>
+<h4>Varios emisores a la vez (ec. 7.3)</h4>
+<p>CDMA supone que las señales que interfieren <strong>se suman</strong> en el canal: si tres mandan 1 y uno manda −1 en el mismo chip, llega un 2. El receptor aplica la misma fórmula sobre la <strong>suma</strong> <span class="formula">Z*<sub>i,m</sub> = Σ<sub>s</sub> Z<sup>s</sup><sub>i,m</sub></span>, usando el código del emisor que le interesa, y <strong>recupera solo sus datos</strong>. El truco es que los códigos se eligen <strong>ortogonales</strong>: el producto de dos códigos distintos suma 0, así que la contribución de los demás emisores se cancela en la suma. Es como una fiesta donde cada pareja habla en otro idioma: entendés solo la conversación en el tuyo.</p>
+<span class="warn">Los dos problemas prácticos que el libro menciona: <strong>(1)</strong> los códigos hay que elegirlos con cuidado para que sean ortogonales; <strong>(2)</strong> el modelo supone que las señales de todos los emisores llegan con la <strong>misma potencia</strong>, y en la realidad un emisor cercano puede tapar a uno lejano.</span>`,
       },
       {
         title: '802.11: arquitectura, canales y asociación al AP',
@@ -1416,6 +1628,47 @@ export const SECTIONS: Section[] = [
 <span class="tip">Dato para no confundirse: se suele decir "la trama 802.11 tiene 4 direcciones" porque el <em>formato</em> las prevé, pero en el <strong>modo infraestructura que usás todos los días van 3</strong>.</span>`,
       },
       {
+        title: '802.11 avanzado: movilidad en la subred, rate adaptation y ahorro de energía',
+        html: `
+<h4>Movilidad dentro de la misma subred (§7.3.4)</h4>
+<p>Para cubrir un edificio se ponen <strong>varios BSS en la misma subred IP</strong>, unidos por un <strong>switch</strong> (no por un router). Cuando H1 se aleja de AP1, ve que la señal se debilita, escanea, recibe los beacons de AP2 (muchas veces con el <strong>mismo SSID</strong>), se <strong>desasocia</strong> de AP1 y se <strong>asocia</strong> a AP2.</p>
+<p>Como sigue en la misma subred, <strong>conserva su IP y sus conexiones TCP</strong>. Si entre los dos BSS hubiera un <strong>router</strong>, H1 tendría que conseguir una IP nueva, y eso <strong>cortaría</strong> sus conexiones: ese caso necesita movilidad de capa de red (Mobile IP).</p>
+<p><strong>El problema que queda es el switch</strong>: su tabla aprendida todavía dice que la MAC de H1 está del lado de AP1, y le seguiría mandando las tramas ahí. Los switches son self-learning, pero no fueron pensados para usuarios que se mueven todo el tiempo. La solución (que el libro llama "un poco un hack") es que AP2, apenas se asocia H1, mande una <strong>trama Ethernet de broadcast con la MAC de H1 como origen</strong>: el switch la ve y actualiza su tabla. Lo mismo funciona dentro de una <strong>VLAN</strong> que abarque varios edificios.</p>
+<h4>Rate adaptation (§7.3.5)</h4>
+<p>Cuando te alejás del AP baja la SNR. Si la modulación no cambia, la <strong>BER</strong> se vuelve inaceptable y ya no llega ninguna trama. Por eso las implementaciones de 802.11 eligen la modulación dinámicamente:</p>
+<ul>
+<li>Si se mandan <strong>2 tramas seguidas sin ACK</strong> (señal implícita de errores de bit), se <strong>baja</strong> a la tasa inmediatamente inferior.</li>
+<li>Si se reciben <strong>10 ACKs seguidos</strong>, o vence un timer desde la última bajada, se <strong>sube</strong> a la siguiente tasa.</li>
+</ul>
+<p>Es la <strong>misma filosofía de sondeo que el control de congestión de TCP</strong>: subir mientras todo va bien, bajar cuando falla algo. El estándar no fija el algoritmo: da los mecanismos y cada fabricante implementa su variante.</p>
+<h4>Ahorro de energía (power management)</h4>
+<ul>
+<li>El nodo avisa que se va a dormir poniendo en <strong>1 el bit de power management</strong> del header de una trama.</li>
+<li>El AP entonces <strong>no le manda nada</strong>: le <strong>guarda en un buffer</strong> las tramas que le lleguen.</li>
+<li>El nodo programa un timer para <strong>despertarse justo antes del próximo beacon</strong> (el AP manda uno cada ~100 ms). Despertarse le lleva apenas ~250 μs.</li>
+<li>El beacon trae la <strong>lista de nodos con tramas guardadas</strong>. Si el nodo no está en la lista, vuelve a dormir; si está, le pide las tramas al AP con un mensaje de <em>polling</em>.</li>
+</ul>
+<p>Resultado: un nodo que no tiene nada para mandar ni recibir puede estar <strong>dormido el 99% del tiempo</strong>.</p>`,
+      },
+      {
+        title: 'Bluetooth: redes de área personal (piconets)',
+        html: `
+<p><strong>Bluetooth</strong> es el "reemplazo de cables": teclado, mouse, auriculares, el auto. Alcance corto (decenas de metros o menos), poca potencia y bajo costo. Por eso se las llama <strong>WPAN</strong> (wireless personal area networks) o <strong>piconets</strong>. Son chicas, pero usan casi todas las técnicas de enlace de la materia: TDM, división por frecuencia, backoff aleatorio, polling, detección de errores y ACK/NAK.</p>
+<h4>El canal: TDM + saltos de frecuencia</h4>
+<ul>
+<li>Opera en la banda <strong>ISM de 2,4 GHz</strong>, sin licencia, la misma que los microondas, los teléfonos inalámbricos y WiFi. Está diseñado pensando en la <strong>interferencia</strong>.</li>
+<li>El tiempo se divide en <strong>slots de 625 μs</strong> (TDM). En cada slot se transmite en uno de <strong>79 canales</strong>, y el canal <strong>salta</strong> de slot a slot siguiendo una secuencia pseudoaleatoria conocida: <strong>FHSS</strong> (frequency-hopping spread spectrum). Así, otro equipo que interfiera en una frecuencia solo afecta a algunos slots.</li>
+<li>Hasta <strong>3 Mbps</strong>.</li>
+</ul>
+<h4>La piconet: maestro y clientes</h4>
+<p>Es una red <strong>ad hoc</strong>, sin AP. Hasta <strong>8 dispositivos activos</strong>: uno es el <strong>maestro</strong> y el resto, <strong>clientes</strong>. El maestro manda en todo: su reloj define los slots, elige la secuencia de saltos, decide quién entra, controla la potencia de los clientes y les da permiso para transmitir por <strong>polling</strong>. Además puede haber hasta <strong>255 dispositivos "parked"</strong>, dormidos para ahorrar energía, que no pueden comunicarse hasta que el maestro los activa.</p>
+<h4>Cómo se arma la red</h4>
+<ol>
+<li><strong>Descubrimiento de vecinos</strong>: el maestro manda <strong>32 mensajes de inquiry</strong>, cada uno en otra frecuencia, y repite la secuencia hasta 128 veces. El cliente escucha en una frecuencia; cuando oye un inquiry espera un tiempo aleatorio entre 0 y 0,3 s (para no chocar con otros, como el backoff de Ethernet) y contesta con su ID.</li>
+<li><strong>Paging</strong>: el maestro invita a los que quiere sumar, con mensajes dirigidos a cada cliente (otra vez en varias frecuencias, porque el cliente todavía no conoce el patrón de saltos). Cuando el cliente responde, le pasa el <strong>patrón de saltos</strong>, la <strong>sincronización de reloj</strong> y una dirección de miembro activo. Es el equivalente a asociarse a un AP en 802.11.</li>
+</ol>`,
+      },
+      {
         title: 'Gestión de la movilidad',
         widget: 'mobility-detail',
         html: `
@@ -1431,7 +1684,23 @@ export const SECTIONS: Section[] = [
 <li><strong>Indirect routing</strong>: el corresponsal escribe a la home address; el <strong>Home Agent lo intercepta y lo tunelea</strong> (encapsula IP-en-IP) hasta la COA. Transparente para el corresponsal, pero la respuesta vuelve directa → ruta asimétrica: el <strong>problema del triángulo</strong> (ineficiente).</li>
 <li><strong>Direct routing</strong>: el corresponsal <strong>pregunta la COA una vez</strong> y manda directo a la red visitada. Óptimo, pero más complejo y hay que resolver el <strong>handoff</strong> si el móvil se muda a otra red foránea.</li>
 </ul>
-<span class="tip"><strong>Mobile IP</strong> estandariza los agentes, el <strong>registro de la COA</strong> y el <strong>tunneling</strong>. Analogía del libro: te mudás y dejás en el correo viejo una orden de <em>reenvío</em> a tu dirección nueva (indirect); o directamente le pasás tu dirección nueva a quien te escribe (direct).</span>`,
+<span class="tip"><strong>Mobile IP</strong> estandariza los agentes, el <strong>registro de la COA</strong> y el <strong>tunneling</strong>. Analogía del libro: te mudás y dejás en el correo viejo una orden de <em>reenvío</em> a tu dirección nueva (indirect); o directamente le pasás tu dirección nueva a quien te escribe (direct).</span>
+<h4>Mobile IP en concreto (§7.6.2)</h4>
+<p>Está estandarizado hace más de 20 años (<strong>RFC 5944</strong> para IPv4; Mobile IPv6 aplica los mismos principios) pero <strong>casi no se desplegó</strong>: la movilidad real la resolvieron las redes celulares, y en casa o la oficina alcanza con WiFi. Igual se estudia porque implementa los mismos principios. Tiene tres piezas:</p>
+<ul>
+<li><strong>Agent discovery</strong>: el foreign agent <strong>anuncia sus servicios</strong> al móvil que llega a su red — darle una care-of-address, registrarlo ante su home agent y reenviarle datagramas.</li>
+<li><strong>Registro con el home agent</strong>: el móvil (o el foreign agent) <strong>registra y da de baja la COA</strong> ante el home agent. Así el home agent sabe siempre dónde está.</li>
+<li><strong>Ruteo indirecto de datagramas</strong>: cómo el home agent reenvía los datagramas al móvil, con <strong>tunneling</strong>, y cómo se manejan los errores.</li>
+</ul>
+<h4>Mobile IP vs 4G/5G (Tabla 7.3)</h4>
+<p>La arquitectura es casi la misma, con otros nombres:</p>
+<ul>
+<li><strong>Red hogar / red visitada</strong> ↔ home network / <strong>foreign</strong> network.</li>
+<li>El identificador permanente: el <strong>IMSI</strong> en 4G ↔ la <strong>IP permanente</strong> (home address) en Mobile IP.</li>
+<li>Quién sabe dónde está el móvil: la <strong>HSS</strong> ↔ el <strong>home agent</strong>.</li>
+<li>Quién lo atiende en la red visitada: la <strong>MME</strong> ↔ el <strong>foreign agent</strong>.</li>
+<li>Plano de datos: <strong>ruteo indirecto</strong> a través de la red hogar, con túneles, en los dos casos.</li>
+</ul>`,
       },
       {
         title: 'Redes celulares 4G/5G',
@@ -1451,15 +1720,27 @@ export const SECTIONS: Section[] = [
 <li><strong>S-GW</strong> (Serving Gateway) — el <strong>ancla</strong> del plano de datos. Es el punto fijo que <strong>sobrevive a los handovers</strong>: cambia la estación base, pero el S-GW sigue siendo el mismo, y por eso la sesión no se corta.</li>
 <li><strong>PDN-GW</strong> (Packet Data Network Gateway) — el borde hacia Internet: asigna la IP al dispositivo, hace de gateway y aplica políticas/facturación.</li>
 </ul>
-<h4>Handover: el problema que WiFi no resuelve</h4>
-<p>Mientras te movés, la conexión <strong>pasa de una estación base a otra sin cortarse</strong>. Cómo:</p>
+<h4>Movilidad en 4G/5G: los 4 pasos (§7.6.1, Fig. 7.28)</h4>
+<p>El escenario del libro: un pasajero con el celular entra a una red <strong>visitada</strong>, empieza a ver un video y se mueve de una celda a otra.</p>
 <ol>
-<li>El UE <strong>mide</strong> continuamente la señal de su celda y de las vecinas, y le <strong>reporta</strong> a su eNodeB.</li>
-<li>Cuando la vecina se ve mejor, el eNodeB actual <strong>decide el handover</strong> y le pasa el <strong>contexto del UE</strong> al eNodeB destino.</li>
-<li>La celda destino <strong>se prepara ANTES</strong> de soltar la origen — esta es la clave del "sin corte".</li>
-<li>El <strong>S-GW reengancha</strong> el camino de datos hacia la nueva estación base.</li>
+<li><strong>Asociación con la estación base</strong>: el móvil escucha las señales de las estaciones cercanas, elige una y establece un canal de señalización. Le pasa su <strong>IMSI</strong>, que identifica al abonado y a su red hogar.</li>
+<li><strong>Configuración del plano de control</strong>: la estación base contacta a la <strong>MME</strong> de la red visitada. La MME obtiene los datos de autenticación y cifrado (de su caché, de otra MME o de la <strong>HSS</strong> de la red hogar), se hace la <strong>autenticación mutua</strong>, y la MME le avisa a la HSS que el móvil ahora está en la red visitada.</li>
+<li><strong>Configuración del plano de datos</strong>: la MME arma <strong>dos túneles</strong>: estación base ↔ <strong>S-GW</strong> de la red visitada, y S-GW ↔ <strong>P-GW de la red HOGAR</strong>. Todo el tráfico pasa por la red hogar: es <strong>ruteo indirecto simétrico</strong>. Los túneles usan <strong>GTP</strong>, cuyo header lleva un <strong>TEID</strong> que identifica a qué túnel pertenece cada datagrama. (Existe la alternativa <em>local breakout</em>, ir al P-GW de la red visitada, pero casi no se usa.)</li>
+<li><strong>Handover</strong> entre estaciones base, cuando se mueve.</li>
 </ol>
-<span class="tip">El contraste que vale la pena decir: en <strong>WiFi</strong>, cambiar de AP implica <strong>re-asociarse</strong> (y muchas veces pedir IP de nuevo), lo que <strong>corta</strong> las conexiones. La red celular está <strong>diseñada alrededor de la movilidad</strong> desde el principio, y por eso podés ver un video en el subte pasando de antena en antena sin enterarte. Es la diferencia entre movilidad <em>agregada después</em> y movilidad <em>de fábrica</em>.</span>
+<h4>Handover en 7 pasos (Fig. 7.30)</h4>
+<p>El móvil mide una o dos veces por segundo la señal de su estación y de las vecinas, y se lo reporta a su estación actual. Con eso (y con la carga de cada celda) la estación de origen decide. El estándar no fija el algoritmo.</p>
+<ol>
+<li>La estación de <strong>origen</strong> elige la de <strong>destino</strong> y le manda un <strong>Handover Request</strong>.</li>
+<li>La de destino verifica que tenga recursos y los <strong>pre-reserva</strong> (por ejemplo, slots de tiempo). Así el móvil se ahorra el proceso lento de asociación. Contesta con un <strong>Handover Request Acknowledge</strong> con todo lo que el móvil necesita.</li>
+<li>La de origen le pasa al móvil la identidad y los datos de acceso de la nueva estación. <strong>Para el móvil, el handover terminó.</strong></li>
+<li>La de origen deja de mandarle datos al móvil y <strong>reenvía a la de destino</strong> los datagramas que le siguen llegando por el túnel.</li>
+<li>La de destino le avisa a la <strong>MME</strong>, y la MME le indica al <strong>S-GW</strong> que el túnel ahora termina en la estación de destino.</li>
+<li>La de destino confirma a la de origen, que libera los recursos.</li>
+<li>La de destino entrega al móvil tanto los datagramas reenviados como los que ya llegan por el túnel nuevo.</li>
+</ol>
+<p>Todo es <strong>local</strong>: el P-GW de la red hogar ni se entera de que el móvil se movió.</p>
+<span class="tip">El contraste con WiFi: dentro de la <strong>misma subred</strong>, pasar de un AP a otro conserva la IP y las conexiones (§7.3.4), pero si el cambio implica <strong>otra subred</strong>, hay que pedir IP nueva y las conexiones TCP se cortan. La red celular está <strong>diseñada alrededor de la movilidad</strong>: el S-GW hace de ancla y la estación de destino se prepara antes, así que podés ver un video en el subte pasando de antena en antena sin cortes.</span>
 <h4>De 4G a 5G</h4>
 <ul>
 <li><strong>Más capacidad</strong>: bandas nuevas, incluyendo <strong>ondas milimétricas</strong> (mucho ancho de banda pero <strong>alcance corto</strong> y poca penetración en paredes → hacen falta muchísimas <em>small cells</em>).</li>
@@ -1467,6 +1748,28 @@ export const SECTIONS: Section[] = [
 <li><strong>Núcleo por microservicios</strong>: el EPC monolítico se reemplaza por funciones de red virtualizadas — se profundiza la separación control/datos.</li>
 <li><strong>Network slicing</strong>: partir la red física en varias <strong>redes virtuales</strong> con garantías distintas (una "rebanada" de baja latencia para autos, otra de mucho ancho de banda para video), sobre la misma infraestructura.</li>
 </ul>`,
+      },
+      {
+        title: 'Impacto de lo inalámbrico y la movilidad en TCP (§7.7)',
+        html: `
+<p>A primera vista, lo inalámbrico no debería afectar a las capas de arriba: la capa de red sigue dando el mismo servicio best-effort, y TCP y UDP funcionan igual sobre enlaces inalámbricos. Y es cierto que <strong>funcionan</strong>. El problema está en la <strong>performance</strong> de TCP.</p>
+<h4>El problema: TCP cree que toda pérdida es congestión</h4>
+<p>En una red con móviles, un segmento puede perderse por tres motivos distintos:</p>
+<ul>
+<li><strong>Congestión</strong>: un buffer de router lleno.</li>
+<li><strong>Errores de bit</strong> en el enlace inalámbrico, que son mucho más frecuentes que en el cable.</li>
+<li><strong>Handover</strong>: demoras al reenrutar hacia el nuevo punto de conexión.</li>
+</ul>
+<p>Pero el ACK de TCP solo indica que <strong>algo no llegó bien</strong>, no por qué. TCP responde siempre igual: retransmite y <strong>achica la ventana de congestión</strong>. O sea, <strong>asume implícitamente que toda pérdida es congestión</strong>. Si fue un error de bit o un handover, bajar la tasa no tiene sentido: los buffers pueden estar vacíos y el camino libre. TCP frena sin motivo.</p>
+<h4>Las tres soluciones</h4>
+<ul>
+<li><strong>Recuperación local</strong>: corregir los errores <strong>donde ocurren</strong>, en el enlace inalámbrico, antes de que TCP los vea. Es lo que hace el <strong>ARQ de 802.11</strong> (cada trama con su ACK y retransmisión), y en 4G/5G se combina ARQ con FEC.</li>
+<li><strong>Que el emisor TCP sepa del enlace inalámbrico</strong>: distinguir las pérdidas por congestión en la parte cableada de las pérdidas por errores en la parte inalámbrica, y aplicar control de congestión <strong>solo</strong> a las primeras.</li>
+<li><strong>Conexión partida (split connection)</strong>: cortar la conexión en <strong>dos</strong>: una del móvil al punto de acceso y otra del punto de acceso al otro extremo. El tramo inalámbrico puede usar TCP común o un protocolo especial sobre UDP. Las mediciones muestran que se usa mucho en redes celulares y que mejora bastante el rendimiento.</li>
+</ul>
+<h4>¿Y en la capa de aplicación?</h4>
+<p>El espectro es compartido y escaso, así que las aplicaciones tienen que tratar el ancho de banda como un recurso caro: un servidor web no le manda a un celular el mismo contenido pesado que a una PC con cable. A cambio, la movilidad habilita aplicaciones que dependen de la <strong>ubicación</strong> y del <strong>contexto</strong>.</p>
+<span class="tip">La idea que conecta con el capítulo 3: TCP fue diseñado para redes cableadas, donde <strong>perder un paquete ≈ congestión</strong>. En el aire esa equivalencia se rompe, y por eso aparecieron la recuperación local en el enlace y las conexiones partidas. Es un buen ejemplo de una suposición de una capa (transporte) que deja de valer cuando cambia otra (enlace).</span>`,
       },
     ],
   },
@@ -1546,6 +1849,28 @@ export const SECTIONS: Section[] = [
 <p><strong>3 · Firma digital</strong>: se calcula el hash del mensaje y se <strong>cifra con la clave PRIVADA del emisor</strong> (al revés que para confidencialidad, que era la pública del receptor). Cualquiera verifica con la pública. Da integridad + autenticación + <strong>NO REPUDIO</strong>, porque <strong>solo el dueño de la privada pudo generarla</strong>. Se firma el <strong>hash</strong> y no el mensaje entero por eficiencia.</p>
 <p><strong>4 · Certificados y PKI</strong>: todo lo anterior asume que tenés la <strong>clave pública correcta</strong>. Si Trudy sustituye la clave pública, firma con la suya y le hace creer a Bob que es Alice → <strong>MITM</strong>. Solución: una <strong>CA</strong> verifica la identidad y <strong>firma un certificado X.509</strong> (identidad + clave pública + validez + firma de la CA). El navegador lo valida con la pública de la CA que ya tiene en su <strong>trust store</strong>, siguiendo la <strong>cadena de confianza</strong> hasta una <strong>CA raíz</strong>.</p>
 <span class="warn">Dos confusiones que se preguntan: <strong>(1)</strong> ni el HMAC ni la firma <strong>ocultan</strong> el mensaje — dan integridad/autenticación, <strong>no confidencialidad</strong>; para eso hay que cifrar aparte. <strong>(2)</strong> integridad y confidencialidad son <strong>independientes</strong>: una no implica la otra.</span>`,
+      },
+      {
+        title: 'E-mail seguro y PGP (§8.5)',
+        html: `
+<p>Se puede agregar seguridad en <strong>cualquiera de las cuatro capas de arriba</strong>, y el capítulo las recorre de arriba hacia abajo: e-mail (aplicación), TLS (transporte), IPsec (red) y 802.11 (enlace). ¿Por qué en varias capas y no solo en la de red? Por dos razones: la seguridad de capa de red da una "cobertura general", pero <strong>no puede autenticar a un usuario</strong> (un sitio de compras no puede identificar a su cliente con IPsec), y además es <strong>mucho más fácil desplegar algo en las capas altas</strong>: alcanza con el código del cliente y del servidor.</p>
+<h4>Diseñar un e-mail seguro, paso a paso</h4>
+<p>Alice le quiere mandar un mail a Bob, y Trudy quiere meterse. Lo que quieren: <strong>confidencialidad</strong>, <strong>autenticación del emisor</strong>, <strong>integridad</strong> y <strong>autenticación del receptor</strong> (que Alice le esté escribiendo de verdad a Bob y no a un impostor).</p>
+<ol>
+<li><strong>Solo confidencialidad (Fig. 8.19)</strong>: cifrar todo con la clave pública de Bob sería lento para mensajes largos. Entonces Alice elige una <strong>clave de sesión simétrica K<sub>S</sub></strong> al azar, cifra el mensaje con K<sub>S</sub>, cifra K<sub>S</sub> con la <strong>pública de Bob</strong>, y manda las dos cosas juntas. Bob recupera K<sub>S</sub> con su privada y con ella descifra el mensaje. Es el <strong>esquema híbrido</strong>.</li>
+<li><strong>Solo autenticación e integridad (Fig. 8.20)</strong>: Alice calcula el <strong>hash</strong> del mensaje, lo <strong>firma con su privada</strong> y manda el mensaje en claro junto con la firma. Bob verifica la firma con la <strong>pública de Alice</strong> y la compara con su propio hash del mensaje.</li>
+<li><strong>Las tres cosas juntas (Fig. 8.21)</strong>: Alice primero arma el paquete del paso 2 (mensaje + hash firmado) y después lo trata como si fuera un mensaje y le aplica el paso 1 (cifrado con K<sub>S</sub>, y K<sub>S</sub> cifrada con la pública de Bob).</li>
+</ol>
+<p>Fijate el detalle que se pregunta: <strong>cada uno usa criptografía de clave pública DOS veces</strong>. Alice usa <strong>su privada</strong> (para firmar) y la <strong>pública de Bob</strong> (para cifrar K<sub>S</sub>). Bob usa <strong>su privada</strong> (para recuperar K<sub>S</sub>) y la <strong>pública de Alice</strong> (para verificar la firma).</p>
+<span class="warn">El problema que queda: Alice necesita la clave pública de Bob y viceversa. Si Trudy logra hacerle creer a Alice que <em>su</em> clave pública es la de Bob, recibe los mensajes dirigidos a Bob. La solución habitual son los <strong>certificados de una CA</strong>.</span>
+<h4>PGP (Pretty Good Privacy)</h4>
+<p>Lo escribió <strong>Phil Zimmermann en 1991</strong> y su diseño es, en esencia, el de la Fig. 8.21. Según la versión usa MD5 o SHA para el hash; CAST, triple-DES o IDEA como cifrado simétrico; y RSA como cifrado de clave pública.</p>
+<ul>
+<li>Al instalarlo genera el par de claves del usuario. La pública se publica en su sitio web o en un servidor de claves; la privada queda protegida con una <strong>contraseña</strong>.</li>
+<li>Permite <strong>firmar</strong>, <strong>cifrar</strong>, o <strong>las dos cosas</strong>. Un mensaje firmado se ve como el texto en claro seguido de un bloque <code>BEGIN PGP SIGNATURE</code>, que es el hash firmado; uno cifrado es todo un bloque ilegible <code>BEGIN PGP MESSAGE</code>.</li>
+<li><strong>Certificación sin CA: la web of trust.</strong> Alice puede certificar cualquier par clave/usuario que crea legítimo, y puede declarar que confía en otro usuario para que avale más claves. Hasta se hacen <strong>key-signing parties</strong>: la gente se junta en persona, intercambia claves públicas y las firma con su privada.</li>
+</ul>
+<span class="tip">Por qué está en el capítulo: es el ejemplo de que <strong>con las piezas ya vistas</strong> (cifrado simétrico, de clave pública, hash, firma) se arma un sistema completo. Y la diferencia con TLS: PGP usa <strong>confianza distribuida</strong> (web of trust) en vez de <strong>autoridades centrales</strong> (CAs).</span>`,
       },
       {
         title: 'TLS (transporte) → HTTPS',
@@ -1635,6 +1960,27 @@ export const SECTIONS: Section[] = [
 <li><strong>Claves más largas</strong> y cifrado (aunque sin autenticar) en <strong>redes abiertas</strong>, para que en un WiFi público el de al lado no lea tu tráfico en claro.</li>
 </ul>
 <span class="warn">Ojo con el alcance, que se pregunta: WPA/WPA2/WPA3 protegen <strong>solamente el enlace inalámbrico</strong>, entre tu dispositivo y el AP. <strong>De ahí en adelante el tráfico va como siempre</strong>. Por eso <strong>WPA no reemplaza a TLS</strong>: para protección punta a punta hace falta HTTPS igual, y por eso conectarte a un WiFi abierto es riesgoso aunque tenga contraseña.</span>`,
+      },
+      {
+        title: 'Seguridad en 4G/5G: autenticación y acuerdo de claves (AKA, §8.8.2)',
+        html: `
+<p>Los objetivos son los mismos que en 802.11: que el móvil y la estación base <strong>deriven una clave simétrica</strong> para cifrar lo que viaja por el aire, que la red <strong>autentique al dispositivo</strong> y que el dispositivo <strong>autentique a la red</strong>. Esto último no es un detalle: hay casos documentados de <strong>estaciones base truchas</strong> que atraen a los celulares para atacarlos. La diferencia con WiFi es que el móvil puede estar en su red hogar o en una <strong>red visitada</strong>, y entonces las dos redes tienen que colaborar.</p>
+<p>Los actores (Fig. 8.33): el móvil (M), la estación base (BS), la <strong>MME</strong> de la red a la que se conecta y la <strong>HSS</strong> de su red hogar. La MME y la HSS juntas cumplen el papel del servidor de autenticación de 802.11. La clave del protocolo: el móvil y la HSS comparten <strong>de antemano</strong> un secreto, <strong>K<sub>HSS-M</sub></strong>, guardado en la <strong>tarjeta SIM</strong> y en la base de datos de la HSS.</p>
+<h4>El protocolo AKA de 4G, paso a paso</h4>
+<ol>
+<li><strong>(a) Pedido a la HSS</strong>: el móvil manda un mensaje de <em>attach</em> con su <strong>IMSI</strong>. La MME se lo reenvía a la HSS de la red hogar junto con información de la red visitada.</li>
+<li><strong>(b) Respuesta de la HSS</strong>: con K<sub>HSS-M</sub>, la HSS calcula un <strong>auth_token</strong> (algo que solo puede generar quien conozca el secreto, por ejemplo el IMSI cifrado con K<sub>HSS-M</sub>) y una <strong>respuesta esperada xres<sub>HSS</sub></strong>. La MME se guarda xres<sub>HSS</sub> y le pasa el token al móvil. La MME solo hace de intermediaria: <strong>nunca conoce el secreto</strong>.</li>
+<li><strong>(c) El móvil autentica a la red</strong>: descifra el auth_token con su secreto; si obtiene su IMSI, sabe que del otro lado está su HSS legítima. Después calcula <strong>res<sub>M</sub></strong>, haciendo la misma cuenta que hizo la HSS, y se la manda a la MME.</li>
+<li><strong>(d) La red autentica al móvil</strong>: la MME compara res<sub>M</sub> con xres<sub>HSS</sub>. Si coinciden, el móvil demostró que conoce el secreto. La MME avisa que la <strong>autenticación mutua</strong> terminó y le pasa claves a la estación base.</li>
+<li><strong>(e) Derivación de claves</strong>: el móvil y la estación base derivan las claves para cifrar sus tramas, <strong>separadas para el plano de datos y el de control</strong>, con <strong>AES</strong> como en 802.11.</li>
+</ol>
+<h4>Qué cambia en 5G</h4>
+<ul>
+<li>En 4G la decisión la toma la MME de la red <strong>visitada</strong>; en 5G la toma la red <strong>hogar</strong>, y la visitada queda como intermediaria.</li>
+<li>Además de AKA, 5G suma <strong>AKA'</strong> (parecido, pero sobre <strong>EAP</strong>, como 802.11) y un protocolo para <strong>IoT</strong> que no necesita un secreto compartido previo.</li>
+<li>El <strong>IMSI se cifra con clave pública</strong>, así que la identidad permanente del dispositivo <strong>nunca viaja en claro</strong>.</li>
+</ul>
+<span class="tip">Es el mismo patrón que la escalera de autenticación: probar que conocés un secreto <strong>sin mandarlo</strong>, y en las dos direcciones. Comparado con WPA2: la SIM cumple el papel de la contraseña, y la HSS el del servidor de autenticación.</span>`,
       },
       {
         title: 'Firewalls e IDS/IPS',

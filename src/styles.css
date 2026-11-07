@@ -108,3 +108,18 @@ code {
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
 ::-webkit-scrollbar-thumb:hover { background: #3d4a6b; }
+
+/* ---------- Diagramas en pantallas chicas ----------
+   Los nodos de los canvas se posicionan en % con translate(-50%,-50%):
+   en un canvas angosto los de los bordes quedaban recortados.
+   - el canvas deja de recortar (el sobrante cae en el padding del widget)
+   - los nodos/paquetes se achican; con transform-origin 0 0 el `scale`
+     mantiene fijo su punto de anclaje (left/top), sin pisar el transform
+     propio de cada widget. */
+@media (max-width: 640px) {
+  .topic .anim .canvas { overflow: visible !important; }
+  .topic .anim .canvas > [style*="left"] {
+    scale: 0.8;
+    transform-origin: 0 0 !important;
+  }
+}

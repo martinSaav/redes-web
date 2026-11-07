@@ -53,6 +53,11 @@ import { FabricDetail } from '../components/detail/fabric-detail';
 import { BgppropagDetail } from '../components/detail/bgppropag-detail';
 import { OspfDetail } from '../components/detail/ospf-detail';
 import { RipDetail } from '../components/detail/rip-detail';
+import { TcpscenDetail } from '../components/detail/tcpscen-detail';
+import { CongcostDetail } from '../components/detail/congcost-detail';
+import { SocketDetail } from '../components/detail/socket-detail';
+import { CdmaDetail } from '../components/detail/cdma-detail';
+import { DcDetail } from '../components/detail/dc-detail';
 
 @Component({
   selector: 'app-section',
@@ -111,6 +116,11 @@ import { RipDetail } from '../components/detail/rip-detail';
     BgppropagDetail,
     OspfDetail,
     RipDetail,
+    DcDetail,
+    CdmaDetail,
+    SocketDetail,
+    CongcostDetail,
+    TcpscenDetail,
   ],
   template: `
     @if (section(); as sec) {
@@ -338,6 +348,26 @@ import { RipDetail } from '../components/detail/rip-detail';
               }
               @case ('rip-detail') {
                 @defer (on viewport; prefetch on idle) { <app-rip-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('dc-detail') {
+                @defer (on viewport; prefetch on idle) { <app-dc-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('cdma-detail') {
+                @defer (on viewport; prefetch on idle) { <app-cdma-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('socket-detail') {
+                @defer (on viewport; prefetch on idle) { <app-socket-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('congcost-detail') {
+                @defer (on viewport; prefetch on idle) { <app-congcost-detail /> }
+                @placeholder { <div class="wph"></div> }
+              }
+              @case ('tcpscen-detail') {
+                @defer (on viewport; prefetch on idle) { <app-tcpscen-detail /> }
                 @placeholder { <div class="wph"></div> }
               }
             }

@@ -187,7 +187,7 @@ const AUTO_GAP = 1150; // ms entre envíos automáticos
     .wlabel { position: absolute; top: -10px; left: 8px; background: #171e2e; color: #ffd54f; font-size: 0.66rem; font-weight: 700; padding: 0 6px; border-radius: 4px; }
 
     .channel { position: relative; height: 190px; margin: 6px 0 6px 104px; border-top: 1px dashed #2d3750; border-bottom: 1px dashed #2d3750; }
-    .channel-hint { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #39445f; font-size: 0.75rem; white-space: nowrap; pointer-events: none; }
+    .channel-hint { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #39445f; font-size: 0.75rem; white-space: nowrap; pointer-events: none; max-width: 92%; overflow: hidden; text-overflow: ellipsis; }
     .flight {
       position: absolute; transform: translateX(-50%); z-index: 3;
       background: #ffd54f; color: #1a1a1a; border: none; border-radius: 7px;

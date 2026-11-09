@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, signa
 import { Router } from '@angular/router';
 import { SECTIONS } from '../data/content';
 
-/* Buscador global sobre los 83 temas: título + contenido.
+/* Buscador global sobre todos los temas: título + contenido.
    Se abre con Ctrl/Cmd+K y navega a /s/{slug}#t{i}. */
 
 interface Entry {
@@ -35,6 +35,8 @@ function stripHtml(html: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+const TOPIC_COUNT = SECTIONS.reduce((n, s) => n + s.topics.length, 0);
 
 /** El índice se arma una sola vez, la primera vez que se abre el buscador. */
 let INDEX: Entry[] | null = null;
@@ -85,7 +87,7 @@ interface Hit extends Entry {
             <input
               #box
               type="text"
-              placeholder="Buscar en los 83 temas… (ej: nonce, crossbar, backoff)"
+              [placeholder]="'Buscar en los ' + topicCount + ' temas… (ej: nonce, crossbar, backoff)'"
               [value]="term()"
               (input)="onInput($event)"
               (keydown)="onKey($event)"
@@ -186,7 +188,7 @@ interface Hit extends Entry {
     .ibar { display: flex; align-items: center; gap: 9px; padding: 12px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
     .ii { font-size: 1rem; }
     .ibar input {
-      flex: 1; background: transparent; border: none; outline: none;
+      flex: 1; min-width: 0; background: transparent; border: none; outline: none;
       color: var(--text); font: inherit; font-size: 1rem;
     }
     .ibar input::placeholder { color: #5c6a8e; }
@@ -225,8 +227,8 @@ interface Hit extends Entry {
     .chip:hover { color: var(--accent); border-color: var(--accent); }
 
     @media (max-width: 640px) {
-      .ov { padding: 4vh 10px 10px; }
-      .opener kbd { display: none; }
+      .ov { padding: 64px 10px 10px; } /* debajo del botón ✕ del menú, que es fijo */
+      .opener kbd, .esc { display: none; }
     }
   `,
 })
@@ -237,6 +239,7 @@ export class Search {
   readonly term = signal('');
   readonly cursor = signal(0);
 
+  readonly topicCount = TOPIC_COUNT;
   readonly examples = ['nonce', 'crossbar', 'backoff', 'LPM', 'no repudio', 'HOL', 'ARP', 'AS-PATH'];
 
   constructor(private readonly router: Router) {
@@ -267,6 +270,9 @@ export class Search {
 
       // puntaje: título pesa mucho más que el cuerpo
       let score = 0;
+      // la frase completa ("no repudio") pesa más que sus palabras sueltas
+      const phrase = words.join(' ');
+      if (words.length > 1 && e.hay.includes(phrase)) score += 150;
       for (const w of words) {
         if (e.titleNorm.includes(w)) score += 100;
         const n = e.hay.split(w).length - 1;

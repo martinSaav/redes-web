@@ -913,8 +913,8 @@ const QUESTIONS: Question[] = [
 
     .empty { color: var(--text-dim); font-style: italic; padding: 20px; text-align: center; }
 
-    .progress { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-    .pbar { flex: 1; height: 8px; background: #10151f; border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
+    .progress { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+    .pbar { flex: 1; min-width: 120px; height: 8px; background: #10151f; border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
     .pfill { height: 100%; background: linear-gradient(90deg, #1f6feb, #58a6ff); transition: width 0.3s; }
     .pnum { font-size: 0.78rem; color: var(--text-dim); white-space: nowrap; }
     .psec { font-size: 0.72rem; color: #ffd54f; border: 1px solid #d2992244; border-radius: 12px; padding: 2px 10px; white-space: nowrap; }

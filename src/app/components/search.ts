@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { SECTIONS } from '../data/content';
 
@@ -72,6 +72,8 @@ interface Hit extends Entry {
 @Component({
   selector: 'app-search',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // atajo global Ctrl/Cmd + K (Angular saca el listener solo al destruir el componente)
+  host: { '(document:keydown)': 'onGlobalKey($event)' },
   template: `
     <button class="opener" (click)="open()" aria-label="Buscar">
       <span class="oi">🔍</span>
@@ -233,6 +235,7 @@ interface Hit extends Entry {
   `,
 })
 export class Search {
+  private readonly router = inject(Router);
   private readonly boxRef = viewChild<ElementRef<HTMLInputElement>>('box');
 
   readonly isOpen = signal(false);
@@ -242,19 +245,18 @@ export class Search {
   readonly topicCount = TOPIC_COUNT;
   readonly examples = ['nonce', 'crossbar', 'backoff', 'LPM', 'no repudio', 'HOL', 'ARP', 'AS-PATH'];
 
-  constructor(private readonly router: Router) {
-    // atajo global Ctrl/Cmd + K
-    document.addEventListener('keydown', (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        this.isOpen() ? this.close() : this.open();
-      }
-    });
-
+  constructor() {
     // al abrir, enfocar el input
     effect(() => {
       if (this.isOpen()) queueMicrotask(() => this.focusBox());
     });
+  }
+
+  onGlobalKey(e: KeyboardEvent): void {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      this.isOpen() ? this.close() : this.open();
+    }
   }
 
   readonly hits = computed<Hit[]>(() => {
